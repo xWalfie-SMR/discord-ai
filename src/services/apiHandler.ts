@@ -3,16 +3,24 @@ import config from '../config.json' with { type: 'json' };
 
 export const apiHandler = axios.create({
 	baseURL: 'https://models.github.ai',
-	timeout: 5000,
 	headers: {
 		'Content-Type': 'application/json',
-		'Authorization': `Bearer ${config.githubToken}`,
+		Authorization: `Bearer ${config.githubToken}`,
 	},
+	timeout: 5000,
 });
 
 export async function post(endpoint: string, data: object) {
-	const response = await apiHandler.post(endpoint, data);
-	return response.data;
+	try {
+		const response = await apiHandler.post(endpoint, data);
+		return response.data;
+	}
+	catch (error) {
+		if (axios.isAxiosError(error) && error.response) {
+			console.error('API Error:', JSON.stringify(error.response.data, null, 2));
+		}
+		throw error;
+	}
 }
 
 export async function get(endpoint: string) {
