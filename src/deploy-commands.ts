@@ -18,11 +18,13 @@ for (const folder of commandFolders) {
 	// Grab all the command files from the commands directory you created earlier
 	const commandsPath = path.join(foldersPath, folder);
 	const commandFiles = fs.readdirSync(commandsPath).filter((file: string) => file.endsWith('.ts') || file.endsWith('.js'));
+
 	// Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
 	for (const file of commandFiles) {
 		const filePath = path.join(commandsPath, file);
 		const command = await import(filePath);
 		const commandModule = command.default || command;
+
 		if ('data' in commandModule && 'execute' in commandModule) {
 			commands.push(commandModule.data.toJSON());
 		}

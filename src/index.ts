@@ -19,7 +19,9 @@ const eventFiles = fs.readdirSync(eventsPath).filter((file) => file.endsWith('.t
 
 for (const file of eventFiles) {
 	const filePath = path.join(eventsPath, file);
-	const event = require(filePath);
+	const eventModule = await import(filePath);
+	const event = eventModule.default;
+
 	if (event.once) {
 		client.once(event.name, (...args: any[]) => event.execute(...args));
 	}
@@ -35,11 +37,14 @@ const commandFolders = fs.readdirSync(foldersPath);
 for (const folder of commandFolders) {
 	const commandsPath = path.join(foldersPath, folder);
 	const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.ts') || file.endsWith('.js'));
+
 	for (const file of commandFiles) {
 		const filePath = path.join(commandsPath, file);
-		const command = require(filePath);
+		const commandModule = await import(filePath);
+		const command = commandModule.default;
+
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
-		if ('data' in command && 'execute' in command) {
+		if (command && 'data' in command && 'execute' in command) {
 			client.commands.set(command.data.name, command);
 		}
 		else {
