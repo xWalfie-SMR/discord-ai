@@ -26,7 +26,7 @@ jobs:
         run: npm run lint
       
       - name: Config
-        run: cp config.example.json config.json
+        run: cp src/config.example.json src/config.json
 
       - name: Typecheck
         run: npm run typecheck
