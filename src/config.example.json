@@ -1,0 +1,6 @@
+{
+	"discordToken": "a discord token would fit here",
+	"clientId": "client id from discord dev portal",
+	"guildId": "guild id from the server the bot is in",
+	"githubToken": "github token, i used classic pat"
+}
