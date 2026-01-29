@@ -1,5 +1,10 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import {
+	ChatInputCommandInteraction,
+	SlashCommandBuilder,
+	AttachmentBuilder,
+} from 'discord.js';
 import { processCommand } from '../../services/aiClient.js';
+import { requestScreenshot } from '../../socket/server.js';
 
 export default {
 	data: new SlashCommandBuilder()
@@ -17,7 +22,26 @@ export default {
 
 		try {
 			const result = await processCommand(command);
-			await interaction.editReply(`\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``);
+			await interaction.editReply(
+				`\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
+			);
+
+			// request a screenshot from the connected client and attach it if available
+			const screenshot = await requestScreenshot(interaction.user.id, command);
+			if (
+				typeof screenshot === 'string' &&
+        screenshot.startsWith('data:image/')
+			) {
+				const base64 = screenshot.split(',')[1];
+				const buffer = Buffer.from(base64, 'base64');
+				const attachment = new AttachmentBuilder(buffer, {
+					name: 'screenshot.png',
+				});
+				await interaction.followUp({
+					content: 'Screenshot:',
+					files: [attachment],
+				});
+			}
 		}
 		catch (error) {
 			console.error('Error processing command:', error);

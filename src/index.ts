@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import './socket/server.js';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
-import config from './config.json' with { type: 'json' };
 import { fileURLToPath } from 'node:url';
+import config from './config.json' with { type: 'json' };
 
 const { discordToken } = config;
 

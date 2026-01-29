@@ -28,12 +28,14 @@
     "prepare": "husky"
   },
   "lint-staged": {
-      "*.ts": "eslint --fix"
+    "*.ts": "eslint --fix"
   },
   "dependencies": {
+    "@google/genai": "^1.38.0",
     "axios": "^1.13.3",
     "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
