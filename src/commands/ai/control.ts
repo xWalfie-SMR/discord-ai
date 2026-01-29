@@ -3,45 +3,58 @@ import {
 	SlashCommandBuilder,
 	AttachmentBuilder,
 } from 'discord.js';
-import { processCommand } from '../../services/aiClient.js';
+import { getMessages, storeMessage } from '../../services/conversationStore.js';
 import { requestScreenshot } from '../../socket/server.js';
+import { chat } from '../../services/aiClient.js';
 
 export default {
 	data: new SlashCommandBuilder()
 		.setName('control')
-		.setDescription('Sends a command to the AI control system.')
+		.setDescription('Sends a command to the AI.')
 		.addStringOption((option) =>
 			option
 				.setName('command')
-				.setDescription('The command to send to the AI control system')
+				.setDescription('The command to send to the AI')
 				.setRequired(true),
 		),
 	async execute(interaction: ChatInputCommandInteraction) {
 		const command = interaction.options.getString('command', true);
+		const userId = interaction.user.id;
 		await interaction.deferReply();
 
 		try {
-			const result = await processCommand(command);
-			await interaction.editReply(
-				`\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
-			);
+			// Retrieve conversation history
+			const history = getMessages(userId);
 
-			// request a screenshot from the connected client and attach it if available
-			const screenshot = await requestScreenshot(interaction.user.id, command);
-			if (
-				typeof screenshot === 'string' &&
-        screenshot.startsWith('data:image/')
-			) {
-				const base64 = screenshot.split(',')[1];
-				const buffer = Buffer.from(base64, 'base64');
-				const attachment = new AttachmentBuilder(buffer, {
-					name: 'screenshot.png',
-				});
-				await interaction.followUp({
-					content: 'Screenshot:',
+			// Send to AI with command and history
+			let response = await chat(command, history);
+
+			// Check if the AI requested a screenshot
+			if (response.needsScreenshot) {
+				await interaction.editReply('The AI is requesting a screenshot, please wait...');
+				const screenshot = await requestScreenshot(userId, command);
+				const base64Data = screenshot.split(',')[1];
+				const screenshotBuffer = Buffer.from(base64Data, 'base64');
+				const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'screenshot.png' });
+				storeMessage(userId, 'assistant', 'Requested screenshot.');
+				const updatedHistory = getMessages(userId);
+
+				// Re-send to AI with screenshot context
+				response = await chat(command, updatedHistory, screenshot);
+
+				// Send final response with screenshot attached
+				await interaction.editReply({
+					content: response.text,
 					files: [attachment],
 				});
 			}
+			else {
+				await interaction.editReply(response.text);
+			}
+
+			// Store the interaction
+			storeMessage(userId, 'user', command);
+			storeMessage(userId, 'assistant', response.text);
 		}
 		catch (error) {
 			console.error('Error processing command:', error);

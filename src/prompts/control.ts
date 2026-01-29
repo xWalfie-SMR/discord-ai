@@ -1,16 +1,28 @@
-export function controlPrompt(command: string) {
-	return `You are a helpful assistant that converts natural language into structured data for an accessibility application that helps users with disabilities control their computer.
+function chatPrompt(command: string, history: Array<{ role: string; content: string }>) {
+	const historyText = history.map(m => `${m.role}: ${m.content}`).join('\n');
 
-Convert the user's request into a JSON array describing the UI interactions needed.
+	return `You are an AI assistant that can chat with the user, request screenshots and control their Windows PC.
 
-Output format (JSON array only, no markdown, no explanation):
-[
-    { "type": "key", "key": "win" },
-    { "type": "key_combination", "keys": ["ctrl", "shift", "n"] },
-    { "type": "type", "text": "chrome" },
-    { "type": "click", "button": "left", "x": 100, "y": 200 },
-    { "type": "wait", "ms": 1000 }
-]
+Conversation history:
+${historyText || '(none)'}
 
-User request: ${command}`;
+User's message: ${command}
+
+Respond in JSON format:
+{
+	"text": "Your response to the user",
+	"needsScreenshot": true/false (set true if you need to see the screen to help),
+	"actions": [] (array of PC actions if the user wants you to do something)
 }
+
+Action format (only if needed):
+{ "type": "key", "key": "win" }
+{ "type": "key_combination", "keys": ["ctrl", "t"] }
+{ "type": "type", "text": "hello" }
+{ "type": "click", "button": "left", "x": 100, "y": 200 }
+{ "type": "wait", "ms": 1000 }
+
+If it's just chat, return empty actions array and needsScreenshot: false. If the user breaks the TOS or asks for something unethical, refuse to help. but don't break the formatting.`;
+}
+
+export { chatPrompt };

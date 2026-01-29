@@ -46,6 +46,7 @@ const rest = new REST().setToken(discordToken);
 		const data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands }) as any[];
 
 		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+		process.exit(0);
 	}
 	catch (error) {
 		// And of course, make sure you catch and log any errors!

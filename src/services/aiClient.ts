@@ -1,25 +1,60 @@
-import { post } from './apiHandler.js';
-import { controlPrompt } from '../prompts/control.js';
+import { chatPrompt } from '../prompts/control.js';
 import { Action } from '../types/actions.js';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import config from '../config.json' with { type: 'json' };
 
-export async function processCommand(command: string): Promise<Action[]> {
-	const data = await post('/inference/chat/completions', {
-		model: 'openai/gpt-4o',
-		messages: [
-			{
-				role: 'user',
-				content: controlPrompt(command),
-			},
-		],
+// Initialize the Google GenAI client
+const ai = new GoogleGenAI({ apiKey: config.googleApiKey });
+
+// Define the structure of the AI's chat response
+type ChatResponse = {
+	text: string;
+	needsScreenshot?: boolean;
+	actions?: Action[];
+};
+
+// Function to interact with the AI model for chat and control
+async function chat(
+	command: string,
+	history: Array<{ role: string; content: string }>,
+	screenshot?: string,
+): Promise<ChatResponse> {
+	// Prepare contents for the AI request
+	const contents = [];
+
+	// If a screenshot is provided, add it to the contents
+	if (screenshot) {
+		const base64Data = screenshot.startsWith('data:image/') ? screenshot.split(',')[1] : screenshot;
+		contents.push({
+			inlineData: { mimeType: 'image/png', data: base64Data },
+		});
+	}
+
+	// Add the chat prompt
+	contents.push({
+		text: chatPrompt(command, history),
 	});
 
-	let content = data.choices[0].message.content;
+	// Send the request to the AI model
+	const response = await ai.models.generateContent({
+		model: 'gemini-3-flash-preview',
+		contents,
+		config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
+	});
 
-	content = content
-		.replace(/^```json\s*/i, '')
-		.replace(/^```\s*/i, '')
-		.replace(/\s*```$/i, '')
-		.trim();
+	const text = response.text ?? '';
 
-	return JSON.parse(content);
+	try {
+		const parsed = JSON.parse(text);
+		return {
+			text: parsed.text ?? '',
+			needsScreenshot: parsed.needsScreenshot ?? false,
+			actions: parsed.actions ?? [],
+		};
+	}
+	catch {
+		return { text };
+	}
 }
+
+export { chat, ChatResponse };

@@ -19,7 +19,7 @@ io.on('connection', (socket: Socket) => {
 	});
 });
 
-function requestScreenshot(userId: string, prompt: string) {
+function requestScreenshot(userId: string, prompt: string): Promise<string> {
 	// use a Promise to wait for the screenshot response
 	return new Promise((resolve) => {
 		// emit the request to the client
