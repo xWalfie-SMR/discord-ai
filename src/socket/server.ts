@@ -1,7 +1,27 @@
 import { Socket, Server } from 'socket.io';
+import { createServer } from 'https';
+import { readFileSync } from 'fs';
 
-const io = new Server(3000);
+// HTTPS server options
+const httpsOptions = {
+	key: readFileSync('/etc/letsencrypt/live/vm.xwalfie.dev/privkey.pem'),
+	cert: readFileSync('/etc/letsencrypt/live/vm.xwalfie.dev/fullchain.pem'),
+};
 
+// create HTTPS server
+const httpsServer = createServer(httpsOptions);
+
+// create Socket.IO server
+const io = new Server(httpsServer, {
+	cors: {
+		origin: '*',
+	},
+});
+
+// start HTTPS server
+httpsServer.listen(3000);
+
+// handle socket connections
 io.on('connection', (socket: Socket) => {
 	console.log('a user connected');
 
