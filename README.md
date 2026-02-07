@@ -26,7 +26,7 @@ Discord AI Bot is an intelligent assistant that bridges Discord communication wi
    - Coordinates screenshot requests and PC control actions
 
 2. **Control Client** (companion repository: `control-client`)
-   - Runs on target Windows PC
+   - Runs on target PC
    - Executes received actions (keyboard, mouse, screenshot capture)
    - Communicates with bot server via WebSocket
 
@@ -35,7 +35,7 @@ Discord AI Bot is an intelligent assistant that bridges Discord communication wi
 ```
 Discord User → Discord Bot → Gemini AI → Action Request → Socket.IO Server
                                                                 ↓
-Windows PC ← Control Client ← WebSocket Connection ← Socket.IO Server
+PC ← Control Client ← WebSocket Connection ← Socket.IO Server
 ```
 
 ## Prerequisites
@@ -207,10 +207,14 @@ discord-ai/
 │   ├── config.example.json       # Configuration template
 │   ├── deploy-commands.ts        # Command deployment script
 │   └── index.ts                  # Application entry point
-├── .gitignore
-├── LICENSE                       # MIT License
+├── .dockerignore                 # Docker ignore rules
+├── .gitignore                    # Git ignore rules
+├── Dockerfile                    # Docker container configuration
+├── docker-compose.yml            # Docker Compose setup
 ├── eslint.config.js              # ESLint configuration
-├── package.json                  # Project dependencies
+├── LICENSE                       # MIT License
+├── package-lock.json             # Dependency lock file
+├── package.json                  # Project dependencies and scripts
 ├── tsconfig.json                 # TypeScript configuration (development)
 ├── tsconfig.build.json           # TypeScript configuration (production)
 └── README.md                     # This file
