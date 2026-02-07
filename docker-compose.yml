@@ -1,0 +1,10 @@
+services:
+    discord-bot:
+        build: .
+        container_name: discord-ai-bot
+        restart: unless-stopped
+        environment:
+            - NODE_ENV=production
+        volumes:
+            - ./logs:/app/logs
+            - ./src/config.json:/app/src/config.json:ro

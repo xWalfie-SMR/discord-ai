@@ -1,35 +1,52 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
 
 jobs:
-  validate:
-    runs-on: ubuntu-latest
+    validate:
+        runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Lint
-        run: npm run lint
-      
-      - name: Config
-        run: cp src/config.example.json src/config.json
+            - name: Lint
+              run: npm run lint
 
-      - name: Typecheck
-        run: npm run typecheck
+            - name: Config
+              run: cp src/config.example.json src/config.json
 
-      - name: Build
-        run: npm run build
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Build
+              run: npm run build
+
+    deploy:
+        runs-on: ubuntu-latest
+        needs: validate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+        steps:
+            - name: Deploy to production server
+              uses: appleboy/ssh-action@v1.0.3
+              with:
+                  host: ${{ secrets.SERVER_HOST }}
+                  username: ${{ secrets.SERVER_USER }}
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  script: |
+                      cd /home/ubuntu/programming/discord-ai
+                      git pull origin main
+                      docker compose up -d --build
