@@ -3,6 +3,7 @@ services:
         build: .
         container_name: discord-ai-bot
         restart: unless-stopped
+        network_mode: host
         environment:
             - NODE_ENV=production
         volumes:
