@@ -8,3 +8,4 @@ services:
         volumes:
             - ./logs:/app/logs
             - ./src/config.json:/app/src/config.json:ro
+            - /etc/letsencrypt:/etc/letsencrypt:ro
