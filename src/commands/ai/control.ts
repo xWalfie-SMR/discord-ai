@@ -4,7 +4,7 @@ import {
 	AttachmentBuilder,
 } from 'discord.js';
 import { getMessages, storeMessage } from '../../services/conversationStore.js';
-import { requestScreenshot } from '../../socket/server.js';
+import { executeActions, requestScreenshot } from '../../socket/server.js';
 import { chat } from '../../services/aiClient.js';
 
 export default {
@@ -55,6 +55,9 @@ export default {
 			else {
 				await interaction.editReply(response.text);
 			}
+
+			const actions = response.actions ?? [];
+			executeActions(userId, actions);
 
 			// Store the interaction
 			storeMessage(userId, 'user', command);
