@@ -8,9 +8,9 @@ const ai = new GoogleGenAI({ apiKey: config.googleApiKey });
 
 // Define the structure of the AI's chat response
 type ChatResponse = {
-	text: string;
-	needsScreenshot?: boolean;
-	actions?: Action[];
+    text: string;
+    needsScreenshot?: boolean;
+    actions?: Action[];
 };
 
 // Function to interact with the AI model for chat and control
@@ -43,11 +43,33 @@ async function chat(
 	});
 
 	const text = response.text ?? '';
+
+	// Step 1: Remove markdown code blocks if present
 	const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
 	const jsonPayload = (codeBlockMatch?.[1] ?? text).trim();
 
 	try {
-		const parsed = JSON.parse(jsonPayload);
+		// Step 2: First parse attempt
+		let parsed = JSON.parse(jsonPayload);
+
+		// Step 3: Handle double-stringified JSON (if AI returns a string instead of object)
+		if (typeof parsed === 'string') {
+			// Try parsing again in case it's stringified JSON
+			try {
+				parsed = JSON.parse(parsed);
+			}
+			catch {
+				// If second parse fails, treat the string as plain text
+				return { text: parsed };
+			}
+		}
+
+		// Step 4: Ensure parsed is an object
+		if (typeof parsed !== 'object' || parsed === null) {
+			return { text: String(parsed) };
+		}
+
+		// Step 5: Return the properly structured response
 		return {
 			text: parsed.text ?? '',
 			needsScreenshot: parsed.needsScreenshot ?? false,
@@ -55,6 +77,7 @@ async function chat(
 		};
 	}
 	catch {
+		// If parsing fails completely, return the raw text
 		return { text };
 	}
 }
