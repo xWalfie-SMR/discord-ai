@@ -30,25 +30,34 @@ io.on('connection', (socket: Socket) => {
 	});
 
 	// receive screenshot data from client
-	socket.on('screenshot_unvalidated', (data: { userId: string, screenshot: string, prompt: string }) => {
-		// validate screenshot data
-		if (!data.screenshot || !data.screenshot.startsWith('data:image/')) return;
+	socket.on(
+		'screenshot_unvalidated',
+		(data: { userId: string; screenshot: string; prompt: string }) => {
+			// validate screenshot data
+			if (!data.screenshot || !data.screenshot.startsWith('data:image/')) {return;}
 
-		// emit the screenshot data to the requester
-		io.emit('screenshot', data.screenshot);
-	});
+			// emit the screenshot data to the requester
+			io.emit('screenshot', data.screenshot);
+		},
+	);
 });
 
 function requestScreenshot(userId: string, prompt: string): Promise<string> {
 	// use a Promise to wait for the screenshot response
-	return new Promise((resolve) => {
-		// emit the request to the client
-		io.emit('request_screenshot', { userId, prompt });
+	return new Promise((resolve, reject) => {
+		// Set up timeout
+		const timeout = setTimeout(() => {
+			reject(new Error('Screenshot request timeout'));
+		}, 10000);
 
-		// listen for the screenshot response
+		// listen for the screenshot response BEFORE emitting request
 		io.once('screenshot', (data: string) => {
+			clearTimeout(timeout);
 			resolve(data);
 		});
+
+		// emit the request to the client AFTER listener is ready
+		io.emit('request_screenshot', { userId, prompt });
 	});
 }
 
