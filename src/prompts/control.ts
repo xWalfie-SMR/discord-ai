@@ -12,8 +12,10 @@ Respond in JSON format:
 {
 	"text": "Your response to the user",
 	"needsScreenshot": true/false (set true if you need to see the screen to help),
-	"actions": [] (array of PC actions if the user wants you to do something)
+	"actions": [] (array of PC actions if the user explicitly wants you to control their PC; leave empty if you only need to chat)
 }
+
+If you need a screenshot before deciding on actions, set needsScreenshot: true and return an empty actions array.
 
 Action format (only if needed):
 { "type": "key", "key": "win" }

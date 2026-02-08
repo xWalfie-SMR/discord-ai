@@ -1,6 +1,7 @@
 import { Socket, Server } from 'socket.io';
 import { createServer } from 'https';
 import { readFileSync } from 'fs';
+import { Action } from '../types/actions.js';
 
 // Map to store pending screenshot requests by userId
 // eslint-disable-next-line no-unused-vars
@@ -72,5 +73,13 @@ function requestScreenshot(userId: string, prompt: string): Promise<string> {
 	});
 }
 
+function executeActions(userId: string, actions: Action[]): void {
+	if (!actions.length) {
+		return;
+	}
+
+	io.emit('execute_actions', { userId, actions });
+}
+
 export default io;
-export { requestScreenshot };
+export { requestScreenshot, executeActions };
