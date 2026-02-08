@@ -43,9 +43,11 @@ async function chat(
 	});
 
 	const text = response.text ?? '';
+	const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+	const jsonPayload = (codeBlockMatch?.[1] ?? text).trim();
 
 	try {
-		const parsed = JSON.parse(text);
+		const parsed = JSON.parse(jsonPayload);
 		return {
 			text: parsed.text ?? '',
 			needsScreenshot: parsed.needsScreenshot ?? false,
