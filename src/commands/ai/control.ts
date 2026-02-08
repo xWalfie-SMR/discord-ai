@@ -31,11 +31,15 @@ export default {
 
 			// Check if the AI requested a screenshot
 			if (response.needsScreenshot) {
-				await interaction.editReply('The AI is requesting a screenshot, please wait...');
+				await interaction.editReply(
+					'The AI is requesting a screenshot, please wait...',
+				);
 				const screenshot = await requestScreenshot(userId, command);
 				const base64Data = screenshot.split(',')[1];
 				const screenshotBuffer = Buffer.from(base64Data, 'base64');
-				const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'screenshot.png' });
+				const attachment = new AttachmentBuilder(screenshotBuffer, {
+					name: 'screenshot.png',
+				});
 				storeMessage(userId, 'assistant', 'Requested screenshot.');
 				const updatedHistory = getMessages(userId);
 
