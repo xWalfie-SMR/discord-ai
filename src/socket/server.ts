@@ -5,7 +5,7 @@ import { Action } from '../types/actions.js';
 
 // Map to store pending screenshot requests by userId
 // eslint-disable-next-line no-unused-vars
-const pendingScreenshots = new Map<string, (screenshot: string) => void>();
+const pendingScreenshots = new Map<string, { resolve: (screenshot: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 
 const userToSocket = new Map<string, string>();
 
@@ -28,6 +28,33 @@ const io = new Server(httpsServer, {
 // start HTTPS server
 httpsServer.listen(3000);
 
+/**
+ * Look up the live Socket instance for a userId.
+ * Returns undefined if the mapping is stale or the socket is disconnected.
+ */
+function getSocket(userId: string): Socket | undefined {
+	const socketId = userToSocket.get(userId);
+	if (!socketId) return undefined;
+
+	const socket = io.sockets.sockets.get(socketId);
+	if (!socket || socket.disconnected) {
+		userToSocket.delete(userId);
+		return undefined;
+	}
+	return socket;
+}
+
+/**
+ * Cancel and clean up a pending screenshot request (if any).
+ */
+function cancelPending(userId: string, reason?: Error): void {
+	const pending = pendingScreenshots.get(userId);
+	if (!pending) return;
+	clearTimeout(pending.timer);
+	pendingScreenshots.delete(userId);
+	if (reason) pending.reject(reason);
+}
+
 // handle socket connections
 io.on('connection', (socket: Socket) => {
 	console.log('a user connected');
@@ -45,6 +72,7 @@ io.on('connection', (socket: Socket) => {
 		const userId = socket.data.userId as string | undefined;
 		if (userId && userToSocket.get(userId) === socket.id) {
 			userToSocket.delete(userId);
+			cancelPending(userId, new Error('Control client disconnected'));
 		}
 
 		console.log('user disconnected');
@@ -60,52 +88,66 @@ io.on('connection', (socket: Socket) => {
 			}
 
 			// resolve the pending screenshot request for this user
-			const resolver = pendingScreenshots.get(data.userId);
-			if (resolver) {
-				resolver(data.screenshot);
+			const pending = pendingScreenshots.get(data.userId);
+			if (pending) {
+				clearTimeout(pending.timer);
 				pendingScreenshots.delete(data.userId);
+				pending.resolve(data.screenshot);
 			}
 		},
 	);
 });
 
+const SCREENSHOT_TIMEOUT_MS = 30_000;
+const SCREENSHOT_MAX_ATTEMPTS = 2;
+
 function requestScreenshot(userId: string, prompt: string): Promise<string> {
-	// use a Promise to wait for the screenshot response
 	return new Promise((resolve, reject) => {
-		const socketId = userToSocket.get(userId);
-		if (!socketId) {
-			reject(new Error('No control client connected'));
-			return;
-		}
+		let attempts = 0;
 
-		// Set up timeout
-		const timeout = setTimeout(() => {
-			pendingScreenshots.delete(userId);
-			reject(new Error('Screenshot request timeout'));
-		}, 10000);
+		const attempt = () => {
+			attempts++;
 
-		// store the resolver for this userId
-		pendingScreenshots.set(userId, (screenshot: string) => {
-			clearTimeout(timeout);
-			resolve(screenshot);
-		});
+			const socket = getSocket(userId);
+			if (!socket) {
+				reject(new Error('No control client connected'));
+				return;
+			}
 
-		// emit the request to the client
-		io.to(socketId).emit('request_screenshot', { userId, prompt });
+			// Clean up any leftover pending request
+			cancelPending(userId);
+
+			const timer = setTimeout(() => {
+				pendingScreenshots.delete(userId);
+				if (attempts < SCREENSHOT_MAX_ATTEMPTS) {
+					console.warn(
+						`Screenshot timeout for ${userId}, retrying (attempt ${attempts + 1}/${SCREENSHOT_MAX_ATTEMPTS})...`,
+					);
+					attempt();
+				}
+				else {
+					reject(new Error(
+						`Screenshot request timed out after ${attempts} attempt(s)`,
+					));
+				}
+			}, SCREENSHOT_TIMEOUT_MS);
+
+			pendingScreenshots.set(userId, { resolve, reject, timer });
+
+			socket.emit('request_screenshot', { userId, prompt });
+		};
+
+		attempt();
 	});
 }
 
 function executeActions(userId: string, actions: Action[]): void {
-	if (!actions.length) {
-		return;
-	}
+	if (!actions.length) return;
 
-	const socketId = userToSocket.get(userId);
-	if (!socketId) {
-		return;
-	}
+	const socket = getSocket(userId);
+	if (!socket) return;
 
-	io.to(socketId).emit('execute_actions', { userId, actions });
+	socket.emit('execute_actions', { userId, actions });
 }
 
 export default io;
