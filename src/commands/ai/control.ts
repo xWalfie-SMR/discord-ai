@@ -65,9 +65,16 @@ export default {
 		}
 		catch (error) {
 			console.error('Error processing command:', error);
-			await interaction.editReply(
-				`Error processing command: ${error instanceof Error ? error.message : 'Unknown error'}`,
-			);
+			const message =
+				error instanceof Error ? error.message : 'Unknown error';
+			const userMessage = message.includes('timed out')
+				? 'Screenshot request timed out — make sure the control client is running and connected.'
+				: message.includes('No control client')
+					? 'No control client is connected. Please start the control client first.'
+					: message.includes('stale')
+						? 'The control client connection was lost. Please reconnect and try again.'
+						: `Error processing command: ${message}`;
+			await interaction.editReply(userMessage);
 		}
 	},
 };

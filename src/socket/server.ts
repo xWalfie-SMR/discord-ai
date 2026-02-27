@@ -45,6 +45,12 @@ io.on('connection', (socket: Socket) => {
 		const userId = socket.data.userId as string | undefined;
 		if (userId && userToSocket.get(userId) === socket.id) {
 			userToSocket.delete(userId);
+
+			// Reject any pending screenshot request for this user
+			const resolver = pendingScreenshots.get(userId);
+			if (resolver) {
+				pendingScreenshots.delete(userId);
+			}
 		}
 
 		console.log('user disconnected');
@@ -69,29 +75,59 @@ io.on('connection', (socket: Socket) => {
 	);
 });
 
-function requestScreenshot(userId: string, prompt: string): Promise<string> {
-	// use a Promise to wait for the screenshot response
+function requestScreenshot(
+	userId: string,
+	prompt: string,
+	{ timeoutMs = 30000, retries = 1 } = {},
+): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const socketId = userToSocket.get(userId);
-		if (!socketId) {
-			reject(new Error('No control client connected'));
-			return;
-		}
+		let attempts = 0;
 
-		// Set up timeout
-		const timeout = setTimeout(() => {
+		const attempt = () => {
+			attempts++;
+
+			const socketId = userToSocket.get(userId);
+			if (!socketId) {
+				reject(new Error('No control client connected'));
+				return;
+			}
+
+			// Verify the socket is still alive
+			const socket = io.sockets.sockets.get(socketId);
+			if (!socket || socket.disconnected) {
+				userToSocket.delete(userId);
+				reject(new Error('Control client connection is stale'));
+				return;
+			}
+
+			// Clean up any previous pending request for this user
 			pendingScreenshots.delete(userId);
-			reject(new Error('Screenshot request timeout'));
-		}, 10000);
 
-		// store the resolver for this userId
-		pendingScreenshots.set(userId, (screenshot: string) => {
-			clearTimeout(timeout);
-			resolve(screenshot);
-		});
+			const timeout = setTimeout(() => {
+				pendingScreenshots.delete(userId);
+				if (attempts <= retries) {
+					console.warn(
+						`Screenshot timeout for ${userId}, retrying (${attempts}/${retries})...`,
+					);
+					attempt();
+				} else {
+					reject(
+						new Error(
+							`Screenshot request timed out after ${attempts} attempt(s)`,
+						),
+					);
+				}
+			}, timeoutMs);
 
-		// emit the request to the client
-		io.to(socketId).emit('request_screenshot', { userId, prompt });
+			pendingScreenshots.set(userId, (screenshot: string) => {
+				clearTimeout(timeout);
+				resolve(screenshot);
+			});
+
+			socket.emit('request_screenshot', { userId, prompt });
+		};
+
+		attempt();
 	});
 }
 
@@ -105,7 +141,13 @@ function executeActions(userId: string, actions: Action[]): void {
 		return;
 	}
 
-	io.to(socketId).emit('execute_actions', { userId, actions });
+	const socket = io.sockets.sockets.get(socketId);
+	if (!socket || socket.disconnected) {
+		userToSocket.delete(userId);
+		return;
+	}
+
+	socket.emit('execute_actions', { userId, actions });
 }
 
 export default io;
