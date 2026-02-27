@@ -65,9 +65,23 @@ export default {
 		}
 		catch (error) {
 			console.error('Error processing command:', error);
-			await interaction.editReply(
-				`Error processing command: ${error instanceof Error ? error.message : 'Unknown error'}`,
-			);
+			const msg = error instanceof Error ? error.message : 'Unknown error';
+
+			let userMessage: string;
+			if (msg.includes('timed out')) {
+				userMessage = '⏱️ Screenshot request timed out — make sure the control client is running and responsive.';
+			}
+			else if (msg.includes('No control client')) {
+				userMessage = '🔌 No control client connected. Start the control client and try again.';
+			}
+			else if (msg.includes('disconnected') || msg.includes('stale')) {
+				userMessage = '🔌 The control client disconnected. Please reconnect and try again.';
+			}
+			else {
+				userMessage = `Error: ${msg}`;
+			}
+
+			await interaction.editReply(userMessage);
 		}
 	},
 };
