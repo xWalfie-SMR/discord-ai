@@ -24,9 +24,11 @@ async function chat(
 
 	// If a screenshot is provided, add it to the contents
 	if (screenshot) {
-		const base64Data = screenshot.startsWith('data:image/') ? screenshot.split(',')[1] : screenshot;
+		const isDataUri = screenshot.startsWith('data:image/');
+		const base64Data = isDataUri ? screenshot.split(',')[1] : screenshot;
+		const mimeType = isDataUri ? screenshot.split(';')[0].split(':')[1] : 'image/png';
 		contents.push({
-			inlineData: { mimeType: 'image/png', data: base64Data },
+			inlineData: { mimeType, data: base64Data },
 		});
 	}
 
