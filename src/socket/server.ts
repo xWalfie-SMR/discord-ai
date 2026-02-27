@@ -23,6 +23,7 @@ const io = new Server(httpsServer, {
 	cors: {
 		origin: '*',
 	},
+	maxHttpBufferSize: 10e6,
 });
 
 // start HTTPS server
