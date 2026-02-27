@@ -69,13 +69,13 @@ export default {
 
 			let userMessage: string;
 			if (msg.includes('timed out')) {
-				userMessage = '⏱️ Screenshot request timed out — make sure the control client is running and responsive.';
+				userMessage = 'Screenshot request timed out — make sure the control client is running and responsive.';
 			}
 			else if (msg.includes('No control client')) {
-				userMessage = '🔌 No control client connected. Start the control client and try again.';
+				userMessage = 'No control client connected. Start the control client and try again.';
 			}
 			else if (msg.includes('disconnected') || msg.includes('stale')) {
-				userMessage = '🔌 The control client disconnected. Please reconnect and try again.';
+				userMessage = 'The control client disconnected. Please reconnect and try again.';
 			}
 			else {
 				userMessage = `Error: ${msg}`;
