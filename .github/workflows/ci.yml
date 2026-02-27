@@ -48,6 +48,6 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   port: 2222
                   script: |
-                      cd /home/ubuntu/programming/discord-ai
+                      cd /home/${{ secrets.SERVER_USER }}/programming/discord-ai
                       git pull origin main
                       docker compose up -d --build
