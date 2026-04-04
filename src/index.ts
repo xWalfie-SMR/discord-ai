@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import './socket/server.js';
+import { initSocketServer } from './socket/server.js';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import config from './config.json' with { type: 'json' };
@@ -53,6 +53,9 @@ for (const folder of commandFolders) {
 		}
 	}
 }
+
+// Start the socket server
+initSocketServer();
 
 // Log in to Discord with your client's token
 client.login(discordToken);
