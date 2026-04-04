@@ -4,7 +4,7 @@ import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import config from '../config.json' with { type: 'json' };
 
 // Initialize the Google GenAI client
-const ai = new GoogleGenAI({ apiKey: config.googleApiKey });
+const ai = new GoogleGenAI({ apiKey: (config as any).googleApiKey });
 
 // Define the structure of the AI's chat response
 type ChatResponse = {

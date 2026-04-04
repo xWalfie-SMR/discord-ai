@@ -1,7 +1,7 @@
 import { GoogleGenAI, PartMediaResolutionLevel, ThinkingLevel } from '@google/genai';
 import config from '../config.json' with { type: 'json' };
 
-const ai = new GoogleGenAI({ apiKey: config.googleApiKey });
+const ai = new GoogleGenAI({ apiKey: (config as any).googleApiKey });
 
 export async function verifyScreenshot(screenshot: string, command: string): Promise<boolean> {
 	const base64 = screenshot.startsWith('data:image/') ? screenshot.split(',')[1] : screenshot;

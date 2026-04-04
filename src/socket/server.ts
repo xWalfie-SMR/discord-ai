@@ -26,8 +26,16 @@ const io = new Server(httpsServer, {
 	maxHttpBufferSize: 50e6,
 });
 
-// start HTTPS server
-httpsServer.listen(3000);
+let isInitialized = false;
+
+function initSocketServer() {
+	if (isInitialized) return;
+	// start HTTPS server
+	httpsServer.listen(3000, () => {
+		console.log('Socket.IO server listening on port 3000');
+	});
+	isInitialized = true;
+}
 
 /**
  * Look up the live Socket instance for a userId.
@@ -152,4 +160,4 @@ function executeActions(userId: string, actions: Action[]): void {
 }
 
 export default io;
-export { requestScreenshot, executeActions };
+export { requestScreenshot, executeActions, initSocketServer };
