@@ -201,8 +201,9 @@ export default {
 					return;
 				}
 
+				const responseType = typeof responseData.type === 'string' ? responseData.type : 'unknown';
 				await interaction.editReply({
-					content: `Download failed: Expected JSON type "hosted" but received "${responseData.type}". Please try again.`,
+					content: `Download failed: Expected JSON type "hosted" but received "${responseType}". Please try again.`,
 					components: [],
 				});
 				return;
