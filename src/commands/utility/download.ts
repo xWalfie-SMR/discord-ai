@@ -207,10 +207,10 @@ export default {
 			}
 
 			const buffer = Buffer.from(await res.arrayBuffer());
-			const maxFileSize = interaction.attachmentSizeLimit;
-			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, maxFileSize);
+			const discordUploadLimit = interaction.attachmentSizeLimit;
+			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, discordUploadLimit);
 
-			// Files over the hosting threshold are served via hosted links.
+			// Files over the 25MB hosting split or Discord's channel upload limit are served via hosted links.
 			if (buffer.byteLength > uploadLimit) {
 				await sendHostedDownloadReply(interaction, userId);
 				return;
