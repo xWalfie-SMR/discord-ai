@@ -202,7 +202,8 @@ export default {
 				}
 
 				await interaction.editReply({
-					content: 'Download failed: Unexpected JSON response for file download.',
+					content:
+						'Download failed: The server returned an unexpected response format. Please try again.',
 					components: [],
 				});
 				return;
