@@ -217,7 +217,7 @@ export default {
 			// Warn if file exceeds Discord's upload limit for this interaction context
 			if (buffer.byteLength > maxFileSize) {
 				await interaction.editReply({
-					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's limit here is ${(maxFileSize / 1024 / 1024).toFixed(1)}MB.`,
+					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's upload limit for this server is ${(maxFileSize / 1024 / 1024).toFixed(1)}MB.`,
 					components: [],
 				});
 				return;
@@ -275,7 +275,7 @@ function isHostedDownloadResponse(response: {
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
-	const fallback = `HTTP ${res.status}`;
+	const fallback = `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
 	const bodyText = await res.text();
 
 	if (!bodyText.trim()) {
