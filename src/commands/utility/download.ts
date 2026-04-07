@@ -25,8 +25,8 @@ const typedConfig = config as Config;
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 
-// Base Discord upload limit (most servers/users): 8MB
-const DEFAULT_MAX_FILE_SIZE = 8 * 1024 * 1024;
+// Conservative fallback for guild uploads when interaction metadata is unavailable
+const DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
