@@ -6,6 +6,7 @@ import {
 	ButtonBuilder,
 	ButtonStyle,
 	ComponentType,
+	DiscordAPIError,
 } from 'discord.js';
 import config from '../../config.json' with { type: 'json' };
 
@@ -24,9 +25,8 @@ const typedConfig = config as Config;
 // Default values for backwards compatibility
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
-
-// Discord's max file size for non-boosted servers is 25MB
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
+const DISCORD_MESSAGE_MAX_LENGTH = 2000;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -180,9 +180,10 @@ export default {
 			});
 
 			if (!res.ok) {
-				const err = (await res.json()) as { error: string };
+				const err = await readErrorMessage(res);
 				await interaction.editReply({
-					content: `Download failed: ${err.error}`,
+					content: formatDownloadFailureMessage(err),
+					allowedMentions: { parse: [] },
 					components: [],
 				});
 				return;
@@ -195,11 +196,7 @@ export default {
 					download_url?: unknown;
 				};
 				if (isHostedDownloadResponse(responseData)) {
-					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
-					await interaction.editReply({
-						content: `Your file is ready: ${downloadUrl}\nExpires in 1 hour. Click the link to download.`,
-						components: [],
-					});
+					await sendHostedDownloadReply(interaction, userId, responseData.download_url);
 					return;
 				}
 
@@ -211,14 +208,27 @@ export default {
 				return;
 			}
 
+			const discordUploadLimit = Number.isFinite(interaction.attachmentSizeLimit)
+				&& interaction.attachmentSizeLimit > 0
+				? interaction.attachmentSizeLimit
+				: HOSTED_LINK_THRESHOLD_BYTES;
+			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, discordUploadLimit);
+			const contentLengthHeader = res.headers.get('content-length');
+			const contentLength = contentLengthHeader === null
+				? Number.NaN
+				: Number.parseInt(contentLengthHeader, 10);
+
+			// If the server reports an oversized file, avoid buffering the full response.
+			if (Number.isFinite(contentLength) && contentLength > uploadLimit) {
+				await sendHostedDownloadReply(interaction, userId);
+				return;
+			}
+
 			const buffer = Buffer.from(await res.arrayBuffer());
 
-			// Warn if file exceeds Discord's upload limit
-			if (buffer.byteLength > MAX_FILE_SIZE) {
-				await interaction.editReply({
-					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's limit is 25MB.`,
-					components: [],
-				});
+			// Files over the 25MB hosting split or Discord's channel upload limit are served via hosted links.
+			if (buffer.byteLength > uploadLimit) {
+				await sendHostedDownloadReply(interaction, userId);
 				return;
 			}
 
@@ -229,17 +239,27 @@ export default {
 				?? 'track.flac';
 
 			const attachment = new AttachmentBuilder(buffer, { name: filename });
-			await interaction.editReply({
-				content: null,
-				files: [attachment],
-				components: [],
-			});
+			try {
+				await interaction.editReply({
+					content: null,
+					files: [attachment],
+					components: [],
+				});
+			}
+			catch (error) {
+				if (error instanceof DiscordAPIError && error.code === 40005) {
+					await sendHostedDownloadReply(interaction, userId);
+					return;
+				}
+				throw error;
+			}
 		}
 		catch (error) {
 			console.error('Error downloading track:', error);
 			const msg = error instanceof Error ? error.message : 'Unknown error';
 			await interaction.editReply({
-				content: `Download failed: ${msg}`,
+				content: formatDownloadFailureMessage(msg),
+				allowedMentions: { parse: [] },
 				components: [],
 			});
 		}
@@ -271,4 +291,52 @@ function isHostedDownloadResponse(response: {
 }): response is HostedDownloadResponse {
 	return response.type === 'hosted'
 		&& (response.download_url === undefined || typeof response.download_url === 'string');
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+	const statusSuffix = res.statusText ? ` ${res.statusText}` : '';
+	const fallback = `HTTP ${res.status}${statusSuffix}`;
+	const bodyText = await res.text();
+
+	if (!bodyText.trim()) {
+		return fallback;
+	}
+
+	try {
+		const parsed = JSON.parse(bodyText) as { error?: unknown; message?: unknown };
+		if (typeof parsed.error === 'string' && parsed.error.trim()) {
+			return parsed.error;
+		}
+		if (typeof parsed.message === 'string' && parsed.message.trim()) {
+			return parsed.message;
+		}
+	}
+	catch {
+		// Non-JSON responses are valid; fall back to plain text.
+	}
+
+	return bodyText;
+}
+
+function formatDownloadFailureMessage(message: string): string {
+	const prefix = 'Download failed: ';
+	const maxDetailLength = DISCORD_MESSAGE_MAX_LENGTH - prefix.length;
+	const safeMessage = message.replace(/@/g, '@\u200b');
+	const ellipsis = '…';
+	const detail = safeMessage.length > maxDetailLength
+		? `${safeMessage.slice(0, Math.max(0, maxDetailLength - ellipsis.length))}${ellipsis}`
+		: safeMessage;
+	return `${prefix}${detail}`;
+}
+
+async function sendHostedDownloadReply(
+	interaction: ChatInputCommandInteraction,
+	userId: string,
+	downloadUrl?: string,
+): Promise<void> {
+	const url = downloadUrl ?? `${HOSTED_BASE_URL}/${userId}`;
+	await interaction.editReply({
+		content: `Your file is ready: ${url}\nExpires in 1 hour. Click the link to download.`,
+		components: [],
+	});
 }
