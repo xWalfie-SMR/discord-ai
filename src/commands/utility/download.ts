@@ -6,6 +6,7 @@ import {
 	ButtonBuilder,
 	ButtonStyle,
 	ComponentType,
+	DiscordAPIError,
 } from 'discord.js';
 import config from '../../config.json' with { type: 'json' };
 
@@ -24,6 +25,7 @@ const typedConfig = config as Config;
 // Default values for backwards compatibility
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
+const HOSTING_THRESHOLD_BYTES = 25 * 1024 * 1024;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -192,11 +194,7 @@ export default {
 					download_url?: unknown;
 				};
 				if (isHostedDownloadResponse(responseData)) {
-					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
-					await interaction.editReply({
-						content: `Your file is ready: ${downloadUrl}\nExpires in 1 hour. Click the link to download.`,
-						components: [],
-					});
+					await sendHostedDownloadReply(interaction, userId, responseData.download_url);
 					return;
 				}
 
@@ -211,12 +209,9 @@ export default {
 			const buffer = Buffer.from(await res.arrayBuffer());
 			const maxFileSize = interaction.attachmentSizeLimit;
 
-			// Warn if file exceeds Discord's upload limit for this interaction context
-			if (buffer.byteLength > maxFileSize) {
-				await interaction.editReply({
-					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's upload limit for this server is ${(maxFileSize / 1024 / 1024).toFixed(1)}MB.`,
-					components: [],
-				});
+			// Files over the hosting threshold are served via hosted links.
+			if (buffer.byteLength > HOSTING_THRESHOLD_BYTES || buffer.byteLength > maxFileSize) {
+				await sendHostedDownloadReply(interaction, userId);
 				return;
 			}
 
@@ -227,11 +222,20 @@ export default {
 				?? 'track.flac';
 
 			const attachment = new AttachmentBuilder(buffer, { name: filename });
-			await interaction.editReply({
-				content: null,
-				files: [attachment],
-				components: [],
-			});
+			try {
+				await interaction.editReply({
+					content: null,
+					files: [attachment],
+					components: [],
+				});
+			}
+			catch (error) {
+				if (error instanceof DiscordAPIError && error.code === 40005) {
+					await sendHostedDownloadReply(interaction, userId);
+					return;
+				}
+				throw error;
+			}
 		}
 		catch (error) {
 			console.error('Error downloading track:', error);
@@ -294,4 +298,16 @@ async function readErrorMessage(res: Response): Promise<string> {
 	}
 
 	return bodyText;
+}
+
+async function sendHostedDownloadReply(
+	interaction: ChatInputCommandInteraction,
+	userId: string,
+	downloadUrl?: string,
+): Promise<void> {
+	const url = downloadUrl ?? `${HOSTED_BASE_URL}/${userId}`;
+	await interaction.editReply({
+		content: `Your file is ready: ${url}\nExpires in 1 hour. Click the link to download.`,
+		components: [],
+	});
 }
