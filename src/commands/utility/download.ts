@@ -202,7 +202,7 @@ export default {
 				}
 
 				await interaction.editReply({
-					content: `Download failed: Server returned unexpected JSON type "${responseData.type}". Please try again.`,
+					content: `Download failed: Expected JSON type "hosted" but received "${responseData.type}". Please try again.`,
 					components: [],
 				});
 				return;
