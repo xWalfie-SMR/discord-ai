@@ -25,9 +25,6 @@ const typedConfig = config as Config;
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 
-// Conservative fallback for guild uploads when interaction metadata is unavailable
-const DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024;
-
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
 
@@ -212,7 +209,7 @@ export default {
 			}
 
 			const buffer = Buffer.from(await res.arrayBuffer());
-			const maxFileSize = interaction.attachmentSizeLimit || DEFAULT_MAX_FILE_SIZE;
+			const maxFileSize = interaction.attachmentSizeLimit;
 
 			// Warn if file exceeds Discord's upload limit for this interaction context
 			if (buffer.byteLength > maxFileSize) {
@@ -275,7 +272,8 @@ function isHostedDownloadResponse(response: {
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
-	const fallback = `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
+	const statusSuffix = res.statusText ? ` ${res.statusText}` : '';
+	const fallback = `HTTP ${res.status}${statusSuffix}`;
 	const bodyText = await res.text();
 
 	if (!bodyText.trim()) {
