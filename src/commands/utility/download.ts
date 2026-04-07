@@ -25,8 +25,8 @@ const typedConfig = config as Config;
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 
-// Discord's max file size for non-boosted servers is 25MB
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+// Base Discord upload limit (most servers/users): 8MB
+const DEFAULT_MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -180,9 +180,9 @@ export default {
 			});
 
 			if (!res.ok) {
-				const err = (await res.json()) as { error: string };
+				const err = await readErrorMessage(res);
 				await interaction.editReply({
-					content: `Download failed: ${err.error}`,
+					content: `Download failed: ${err}`,
 					components: [],
 				});
 				return;
@@ -212,11 +212,12 @@ export default {
 			}
 
 			const buffer = Buffer.from(await res.arrayBuffer());
+			const maxFileSize = interaction.attachmentSizeLimit || DEFAULT_MAX_FILE_SIZE;
 
-			// Warn if file exceeds Discord's upload limit
-			if (buffer.byteLength > MAX_FILE_SIZE) {
+			// Warn if file exceeds Discord's upload limit for this interaction context
+			if (buffer.byteLength > maxFileSize) {
 				await interaction.editReply({
-					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's limit is 25MB.`,
+					content: `File is too large to upload (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB). Discord's limit here is ${(maxFileSize / 1024 / 1024).toFixed(1)}MB.`,
 					components: [],
 				});
 				return;
@@ -271,4 +272,28 @@ function isHostedDownloadResponse(response: {
 }): response is HostedDownloadResponse {
 	return response.type === 'hosted'
 		&& (response.download_url === undefined || typeof response.download_url === 'string');
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+	const fallback = `HTTP ${res.status}`;
+	const bodyText = await res.text();
+
+	if (!bodyText.trim()) {
+		return fallback;
+	}
+
+	try {
+		const parsed = JSON.parse(bodyText) as { error?: unknown; message?: unknown };
+		if (typeof parsed.error === 'string' && parsed.error.trim()) {
+			return parsed.error;
+		}
+		if (typeof parsed.message === 'string' && parsed.message.trim()) {
+			return parsed.message;
+		}
+	}
+	catch {
+		// Non-JSON responses are valid; fall back to plain text.
+	}
+
+	return bodyText;
 }
