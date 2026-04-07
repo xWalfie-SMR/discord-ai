@@ -202,8 +202,7 @@ export default {
 				}
 
 				await interaction.editReply({
-					content:
-						'Download failed: The server returned an unexpected response format. Please try again.',
+					content: `Download failed: Server returned unexpected JSON type "${responseData.type}". Please try again.`,
 					components: [],
 				});
 				return;
