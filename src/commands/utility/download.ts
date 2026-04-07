@@ -38,8 +38,8 @@ interface UserDownloadResponse {
 }
 
 interface HostedDownloadResponse {
-	type?: string;
-	download_url?: string;
+    type?: string;
+    download_url?: string;
 }
 
 export default {
