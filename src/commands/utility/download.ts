@@ -189,8 +189,8 @@ export default {
 				return;
 			}
 
-			const contentType = res.headers.get('content-type') ?? '';
-			if (contentType.includes('application/json')) {
+			const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+			if (contentType.startsWith('application/json')) {
 				const responseData = await res.json() as DownloadResponse;
 				if (responseData.type === 'hosted') {
 					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
