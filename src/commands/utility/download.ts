@@ -25,7 +25,7 @@ const typedConfig = config as Config;
 // Default values for backwards compatibility
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
-const HOSTING_THRESHOLD_BYTES = 25 * 1024 * 1024;
+const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -208,9 +208,10 @@ export default {
 
 			const buffer = Buffer.from(await res.arrayBuffer());
 			const maxFileSize = interaction.attachmentSizeLimit;
+			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, maxFileSize);
 
 			// Files over the hosting threshold are served via hosted links.
-			if (buffer.byteLength > HOSTING_THRESHOLD_BYTES || buffer.byteLength > maxFileSize) {
+			if (buffer.byteLength > uploadLimit) {
 				await sendHostedDownloadReply(interaction, userId);
 				return;
 			}
