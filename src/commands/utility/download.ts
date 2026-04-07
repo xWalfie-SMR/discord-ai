@@ -26,6 +26,7 @@ const typedConfig = config as Config;
 const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
+const DISCORD_MESSAGE_MAX_LENGTH = 2000;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -181,7 +182,8 @@ export default {
 			if (!res.ok) {
 				const err = await readErrorMessage(res);
 				await interaction.editReply({
-					content: `Download failed: ${err}`,
+					content: formatDownloadFailureMessage(err),
+					allowedMentions: { parse: [] },
 					components: [],
 				});
 				return;
@@ -206,9 +208,22 @@ export default {
 				return;
 			}
 
-			const buffer = Buffer.from(await res.arrayBuffer());
-			const discordUploadLimit = interaction.attachmentSizeLimit;
+			const discordUploadLimit = Number.isFinite(interaction.attachmentSizeLimit)
+				? interaction.attachmentSizeLimit
+				: Number.POSITIVE_INFINITY;
 			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, discordUploadLimit);
+			const contentLengthHeader = res.headers.get('content-length');
+			const contentLength = contentLengthHeader === null
+				? Number.NaN
+				: Number.parseInt(contentLengthHeader, 10);
+
+			// If the server reports an oversized file, avoid buffering the full response.
+			if (Number.isFinite(contentLength) && contentLength > uploadLimit) {
+				await sendHostedDownloadReply(interaction, userId);
+				return;
+			}
+
+			const buffer = Buffer.from(await res.arrayBuffer());
 
 			// Files over the 25MB hosting split or Discord's channel upload limit are served via hosted links.
 			if (buffer.byteLength > uploadLimit) {
@@ -242,7 +257,8 @@ export default {
 			console.error('Error downloading track:', error);
 			const msg = error instanceof Error ? error.message : 'Unknown error';
 			await interaction.editReply({
-				content: `Download failed: ${msg}`,
+				content: formatDownloadFailureMessage(msg),
+				allowedMentions: { parse: [] },
 				components: [],
 			});
 		}
@@ -299,6 +315,16 @@ async function readErrorMessage(res: Response): Promise<string> {
 	}
 
 	return bodyText;
+}
+
+function formatDownloadFailureMessage(message: string): string {
+	const prefix = 'Download failed: ';
+	const maxDetailLength = DISCORD_MESSAGE_MAX_LENGTH - prefix.length;
+	const safeMessage = message.replace(/@/g, '@\u200b');
+	const detail = safeMessage.length > maxDetailLength
+		? `${safeMessage.slice(0, maxDetailLength - 1)}…`
+		: safeMessage;
+	return `${prefix}${detail}`;
 }
 
 async function sendHostedDownloadReply(
