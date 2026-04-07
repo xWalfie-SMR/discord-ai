@@ -189,39 +189,26 @@ export default {
 				return;
 			}
 
-			// Parse response to determine type
-			const responseData = await res.json() as DownloadResponse;
+			const contentType = res.headers.get('content-type') ?? '';
+			if (contentType.includes('application/json')) {
+				const responseData = await res.json() as DownloadResponse;
+				if (responseData.type === 'hosted') {
+					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
+					await interaction.editReply({
+						content: `Your file is ready: ${downloadUrl}\nExpires in 1 hour. Click the link to download.`,
+						components: [],
+					});
+					return;
+				}
 
-			if (responseData.type === 'hosted') {
-				// Hosted download response
-				const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
 				await interaction.editReply({
-					content: `Your file is ready: ${downloadUrl}\nExpires in 1 hour. Click the link to download.`,
+					content: 'Download failed: Unexpected JSON response for file download.',
 					components: [],
 				});
 				return;
 			}
 
-			// File response - fetch the actual file
-			const fileRes = await fetch(`${SPOTIDL_API}/download`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'X-User-ID': userId,
-				},
-				body: JSON.stringify({ url, service, format }),
-			});
-
-			if (!fileRes.ok) {
-				const err = (await fileRes.json()) as { error: string };
-				await interaction.editReply({
-					content: `Download failed: ${err.error}`,
-					components: [],
-				});
-				return;
-			}
-
-			const buffer = Buffer.from(await fileRes.arrayBuffer());
+			const buffer = Buffer.from(await res.arrayBuffer());
 
 			// Warn if file exceeds Discord's upload limit
 			if (buffer.byteLength > MAX_FILE_SIZE) {
@@ -232,13 +219,11 @@ export default {
 				return;
 			}
 
-			// Extract filename from content-disposition header or response data
-			const filename =
-                responseData.filename
-                ?? fileRes.headers
-                	.get('content-disposition')
-                	?.match(/filename="(.+)"/)?.[1]
-                ?? 'track.flac';
+			// Extract filename from content-disposition header
+			const filename = res.headers
+				.get('content-disposition')
+				?.match(/filename="(.+)"/)?.[1]
+				?? 'track.flac';
 
 			const attachment = new AttachmentBuilder(buffer, { name: filename });
 			await interaction.editReply({
