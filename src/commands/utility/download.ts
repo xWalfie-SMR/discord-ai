@@ -37,10 +37,9 @@ interface UserDownloadResponse {
     expires_at?: string;
 }
 
-interface DownloadResponse {
-    type: 'file' | 'hosted';
-    filename?: string;
-    download_url?: string;
+interface HostedDownloadResponse {
+	type?: unknown;
+	download_url?: string;
 }
 
 export default {
@@ -191,7 +190,7 @@ export default {
 
 			const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
 			if (contentType.startsWith('application/json')) {
-				const responseData = await res.json() as DownloadResponse;
+				const responseData = await res.json() as HostedDownloadResponse;
 				if (responseData.type === 'hosted') {
 					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
 					await interaction.editReply({
