@@ -38,7 +38,7 @@ interface UserDownloadResponse {
 }
 
 interface HostedDownloadResponse {
-	type?: unknown;
+	type?: string;
 	download_url?: string;
 }
 
@@ -200,7 +200,7 @@ export default {
 					return;
 				}
 
-				const responseType = typeof responseData.type === 'string' ? responseData.type : 'unknown';
+				const responseType = responseData.type ?? 'unknown';
 				await interaction.editReply({
 					content: `Download failed: Expected JSON type "hosted" but received "${responseType}". Please try again.`,
 					components: [],
