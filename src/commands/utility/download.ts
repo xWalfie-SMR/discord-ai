@@ -209,8 +209,9 @@ export default {
 			}
 
 			const discordUploadLimit = Number.isFinite(interaction.attachmentSizeLimit)
+				&& interaction.attachmentSizeLimit > 0
 				? interaction.attachmentSizeLimit
-				: Number.POSITIVE_INFINITY;
+				: HOSTED_LINK_THRESHOLD_BYTES;
 			const uploadLimit = Math.min(HOSTED_LINK_THRESHOLD_BYTES, discordUploadLimit);
 			const contentLengthHeader = res.headers.get('content-length');
 			const contentLength = contentLengthHeader === null
@@ -321,8 +322,9 @@ function formatDownloadFailureMessage(message: string): string {
 	const prefix = 'Download failed: ';
 	const maxDetailLength = DISCORD_MESSAGE_MAX_LENGTH - prefix.length;
 	const safeMessage = message.replace(/@/g, '@\u200b');
+	const ellipsis = '…';
 	const detail = safeMessage.length > maxDetailLength
-		? `${safeMessage.slice(0, maxDetailLength - 1)}…`
+		? `${safeMessage.slice(0, Math.max(0, maxDetailLength - ellipsis.length))}${ellipsis}`
 		: safeMessage;
 	return `${prefix}${detail}`;
 }
