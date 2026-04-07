@@ -38,7 +38,7 @@ interface UserDownloadResponse {
 }
 
 interface HostedDownloadResponse {
-    type: string;
+    type: 'hosted';
     download_url?: string;
 }
 
@@ -190,8 +190,11 @@ export default {
 
 			const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
 			if (contentType.startsWith('application/json')) {
-				const responseData = await res.json() as HostedDownloadResponse;
-				if (responseData.type === 'hosted') {
+				const responseData = await res.json() as {
+					type?: unknown;
+					download_url?: unknown;
+				};
+				if (isHostedDownloadResponse(responseData)) {
 					const downloadUrl = responseData.download_url ?? `${HOSTED_BASE_URL}/${userId}`;
 					await interaction.editReply({
 						content: `Your file is ready: ${downloadUrl}\nExpires in 1 hour. Click the link to download.`,
@@ -260,4 +263,12 @@ function formatTimeRemaining(expiresAt: Date): string {
 	}
 
 	return `${minutes}m`;
+}
+
+function isHostedDownloadResponse(response: {
+	type?: unknown;
+	download_url?: unknown;
+}): response is HostedDownloadResponse {
+	return response.type === 'hosted'
+		&& (response.download_url === undefined || typeof response.download_url === 'string');
 }
