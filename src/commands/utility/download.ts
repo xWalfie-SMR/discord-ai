@@ -456,7 +456,15 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 }
 
 function isJsonWhitespace(char: string | undefined): boolean {
-	return char === ' ' || char === '\t' || char === '\n' || char === '\r';
+	switch (char) {
+	case ' ':
+	case '\t':
+	case '\n':
+	case '\r':
+		return true;
+	default:
+		return false;
+	}
 }
 
 async function sendHostedDownloadReply(
