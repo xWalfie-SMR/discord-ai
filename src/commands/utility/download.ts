@@ -27,8 +27,10 @@ const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
-const SERVICE_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i;
-const SERVICE_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
+// Matches backend failures like: `all 7 APIs failed. Last error: HTTP 404.`
+const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i;
+// Matches backend endpoint lines like: `https://host:443/: state=closed, consecutive_failures=2`
+const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
 const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
 
 // Button interaction timeout (30 seconds)
@@ -331,17 +333,17 @@ function truncateDownloadFailureDetail(detailMessage: string, prefix: string): s
 
 function formatServiceFailureMessage(message: string): string | null {
 	const trimmed = message.trim();
-	const headerMatch = trimmed.match(SERVICE_FAILURE_HEADER_PATTERN);
+	const headerMatch = trimmed.match(API_FAILURE_HEADER_PATTERN);
 	if (headerMatch === null) {
 		return null;
 	}
 
-	const endpointMatches = [...trimmed.matchAll(SERVICE_ENDPOINT_FAILURE_PATTERN)];
+	const endpointMatches = [...trimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
 
 	const expectedCount = Number.parseInt(headerMatch[1], 10);
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
 		? expectedCount
-		: endpointMatches.length;
+		: Math.max(1, endpointMatches.length);
 	const lastError = headerMatch[2].trim();
 
 	if (endpointMatches.length === 0) {
@@ -353,10 +355,8 @@ function formatServiceFailureMessage(message: string): string | null {
 	}
 
 	const services = endpointMatches.map((match) => {
-		const host = match[1];
-		const state = match[2];
-		const failures = match[3];
-		return `• ${host} (${state}, failures: ${failures})`;
+		const [, host, state, consecutiveFailures] = match;
+		return `• ${host} (${state}, failures: ${consecutiveFailures})`;
 	}).join('\n');
 
 	return [
