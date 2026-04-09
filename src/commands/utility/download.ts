@@ -27,6 +27,9 @@ const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
+const SERVICE_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i;
+const SERVICE_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
+const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -328,14 +331,12 @@ function truncateDownloadFailureDetail(detailMessage: string, prefix: string): s
 
 function formatServiceFailureMessage(message: string): string | null {
 	const trimmed = message.trim();
-	const headerMatch = trimmed.match(/^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i);
+	const headerMatch = trimmed.match(SERVICE_FAILURE_HEADER_PATTERN);
 	if (headerMatch === null) {
 		return null;
 	}
 
-	const endpointMatches = [...trimmed.matchAll(
-		/^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim,
-	)];
+	const endpointMatches = [...trimmed.matchAll(SERVICE_ENDPOINT_FAILURE_PATTERN)];
 
 	const expectedCount = Number.parseInt(headerMatch[1], 10);
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
@@ -344,7 +345,11 @@ function formatServiceFailureMessage(message: string): string | null {
 	const lastError = headerMatch[2].trim();
 
 	if (endpointMatches.length === 0) {
-		return `All ${endpointCount} provider endpoints failed (${lastError}). The service could not find a working fallback source. Please retry in a few minutes or try another track.`;
+		return [
+			`All ${endpointCount} provider endpoints failed (${lastError}).`,
+			'The service could not find a working fallback source.',
+			SERVICE_FAILURE_RETRY_GUIDANCE,
+		].join(' ');
 	}
 
 	const services = endpointMatches.map((match) => {
@@ -359,7 +364,7 @@ function formatServiceFailureMessage(message: string): string | null {
 		'No fallback source could be used for this track.',
 		'Tried services:',
 		services,
-		'Please retry in a few minutes or try another track.',
+		SERVICE_FAILURE_RETRY_GUIDANCE,
 	].join('\n');
 }
 
