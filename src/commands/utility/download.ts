@@ -62,22 +62,10 @@ export default {
 					{ name: 'FLAC (Hi-Res Lossless)', value: 'HI_RES_LOSSLESS' },
 					{ name: 'MP3 (320kbps)', value: 'MP3_320' },
 				),
-		)
-		.addStringOption((option) =>
-			option
-				.setName('service')
-				.setDescription('Download service (default: tidal)')
-				.setRequired(false)
-				.addChoices(
-					{ name: 'Tidal', value: 'tidal' },
-					{ name: 'Amazon Music', value: 'amazon' },
-					{ name: 'Qobuz', value: 'qobuz' },
-				),
 		),
 	async execute(interaction: ChatInputCommandInteraction) {
 		const url = interaction.options.getString('url', true);
 		const format = interaction.options.getString('format') ?? 'LOSSLESS';
-		const service = interaction.options.getString('service') ?? 'tidal';
 		const userId = interaction.user.id;
 
 		await interaction.deferReply();
@@ -176,7 +164,7 @@ export default {
 					'Content-Type': 'application/json',
 					'X-User-ID': userId,
 				},
-				body: JSON.stringify({ url, service, format }),
+				body: JSON.stringify({ url, format }),
 			});
 
 			if (!res.ok) {
