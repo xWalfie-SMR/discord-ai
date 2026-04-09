@@ -406,11 +406,11 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 
 		let escaped = false;
 		let closingQuoteIndex = -1;
-		for (let i = openingQuoteIndex + 1; i < bodyText.length; i += 1) {
-			if (i - openingQuoteIndex - 1 > JSON_LIKE_ERROR_FIELD_MAX_LENGTH) {
-				break;
-			}
-
+		const maxSearchIndexExclusive = Math.min(
+			bodyText.length,
+			openingQuoteIndex + 1 + JSON_LIKE_ERROR_FIELD_MAX_LENGTH + 1,
+		);
+		for (let i = openingQuoteIndex + 1; i < maxSearchIndexExclusive; i += 1) {
 			const char = bodyText[i];
 			if (escaped) {
 				escaped = false;
