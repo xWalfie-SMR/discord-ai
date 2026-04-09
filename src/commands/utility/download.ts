@@ -28,10 +28,11 @@ const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
 // Matches backend failures like: `all 7 APIs failed. Last error: HTTP 404.` or `all 7 APIs failed. Last error:`
-const API_FAILURE_HEADER_PATTERN = /all\s+(\d+)\s+APIs\s+failed\.\s*last error:\s*([^\n]*)/i;
+const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+APIs\s+failed\.\s*last error:\s*([^\n]*)$/i;
 // Matches backend endpoint lines like: `https://host:443/: state=closed, consecutive_failures=2`
 const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
 const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
+const JSON_LIKE_ERROR_FIELD_MAX_LENGTH = 10000;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -336,12 +337,15 @@ function truncateDownloadFailureDetail(detailMessage: string, prefix: string): s
 
 function formatServiceFailureMessage(message: string): string | null {
 	const trimmed = message.trim();
-	const headerMatch = trimmed.match(API_FAILURE_HEADER_PATTERN);
+	const normalizedMessage = extractJsonLikeErrorField(trimmed) ?? trimmed;
+	const normalizedTrimmed = normalizedMessage.trim();
+	const firstLine = normalizedTrimmed.split(/\r?\n/, 1)[0] ?? '';
+	const headerMatch = firstLine.match(API_FAILURE_HEADER_PATTERN);
 	if (headerMatch === null) {
 		return null;
 	}
 
-	const endpointMatches = [...trimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
+	const endpointMatches = [...normalizedTrimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
 
 	const expectedCount = Number.parseInt(headerMatch[1], 10);
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
@@ -383,7 +387,6 @@ function formatServiceFailureMessage(message: string): string | null {
 function extractJsonLikeErrorField(bodyText: string): string | null {
 	const lowerBodyText = bodyText.toLowerCase();
 	const keys = ['"error"', '"message"'];
-	const maxRawValueLength = 10000;
 
 	for (const key of keys) {
 		const keyIndex = lowerBodyText.indexOf(key);
@@ -404,24 +407,27 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		let escaped = false;
 		let rawValue = '';
 		for (let i = openingQuoteIndex + 1; i < bodyText.length; i += 1) {
-			const currentCharacter = bodyText[i];
+			const char = bodyText[i];
 			if (escaped) {
-				rawValue += currentCharacter;
+				rawValue += char;
 				escaped = false;
 				continue;
 			}
 
-			if (currentCharacter === '\\') {
-				rawValue += currentCharacter;
+			if (char === '\\') {
+				rawValue += char;
 				escaped = true;
 				continue;
 			}
 
-			if (currentCharacter === '"') {
+			if (char === '"') {
 				try {
 					const decoded = JSON.parse(`"${rawValue}"`) as unknown;
-					if (typeof decoded === 'string' && decoded.trim()) {
-						return decoded;
+					if (typeof decoded === 'string') {
+						const trimmedDecoded = decoded.trim();
+						if (trimmedDecoded) {
+							return trimmedDecoded;
+						}
 					}
 				}
 				catch {
@@ -433,8 +439,8 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 				break;
 			}
 
-			rawValue += currentCharacter;
-			if (rawValue.length > maxRawValueLength) {
+			rawValue += char;
+			if (rawValue.length > JSON_LIKE_ERROR_FIELD_MAX_LENGTH) {
 				break;
 			}
 		}
