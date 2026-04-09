@@ -333,7 +333,8 @@ function truncateDownloadFailureDetail(detailMessage: string, prefix: string): s
 
 function formatServiceFailureMessage(message: string): string | null {
 	const trimmed = message.trim();
-	const headerMatch = trimmed.match(API_FAILURE_HEADER_PATTERN);
+	const firstLine = trimmed.split(/\r?\n/, 1)[0] ?? '';
+	const headerMatch = firstLine.match(API_FAILURE_HEADER_PATTERN);
 	if (headerMatch === null) {
 		return null;
 	}
@@ -344,14 +345,17 @@ function formatServiceFailureMessage(message: string): string | null {
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
 		? expectedCount
 		: endpointMatches.length;
-	const lastError = headerMatch[2].trim();
+	const rawLastError = headerMatch[2].trim();
+	const lastError = /[.!?]$/.test(rawLastError)
+		? rawLastError
+		: `${rawLastError}.`;
 	const endpointLabel = endpointCount > 0
 		? `${endpointCount} provider endpoints`
 		: 'provider endpoints';
 
 	if (endpointMatches.length === 0) {
 		return [
-			`All ${endpointLabel} failed (${lastError}).`,
+			`All ${endpointLabel} failed (${lastError})`,
 			'The service could not find a working fallback source.',
 			SERVICE_FAILURE_RETRY_GUIDANCE,
 		].join(' ');
@@ -363,7 +367,7 @@ function formatServiceFailureMessage(message: string): string | null {
 	}).join('\n');
 
 	return [
-		`All ${endpointLabel} failed (${lastError}).`,
+		`All ${endpointLabel} failed (${lastError})`,
 		'No fallback source could be used for this track.',
 		'Tried services:',
 		services,
