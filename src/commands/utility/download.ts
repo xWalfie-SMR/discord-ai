@@ -33,6 +33,8 @@ const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+APIs\s+failed\.\s*last error:
 const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
 const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
 const JSON_LIKE_ERROR_FIELD_MAX_LENGTH = 10000;
+const JSON_LIKE_ERROR_KEY_PATTERN = /"(error|message)"/gi;
+const WHITESPACE_PATTERN = /\s/;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -385,8 +387,7 @@ function formatServiceFailureMessage(message: string): string | null {
 }
 
 function extractJsonLikeErrorField(bodyText: string): string | null {
-	const keyPattern = /"(error|message)"/gi;
-	for (const keyMatch of bodyText.matchAll(keyPattern)) {
+	for (const keyMatch of bodyText.matchAll(JSON_LIKE_ERROR_KEY_PATTERN)) {
 		const keyIndex = keyMatch.index;
 		if (keyIndex === undefined) {
 			continue;
@@ -400,7 +401,7 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		let valueStartIndex = colonIndex + 1;
 		while (
 			valueStartIndex < bodyText.length
-			&& /\s/.test(bodyText[valueStartIndex])
+			&& WHITESPACE_PATTERN.test(bodyText[valueStartIndex])
 		) {
 			valueStartIndex += 1;
 		}
