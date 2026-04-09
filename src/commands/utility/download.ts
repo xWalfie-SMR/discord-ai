@@ -381,27 +381,62 @@ function formatServiceFailureMessage(message: string): string | null {
 }
 
 function extractJsonLikeErrorField(bodyText: string): string | null {
-	const match = bodyText.match(/"(?:error|message)"\s*:\s*"((?:\\.|[^"\\])*)"/i);
-	if (match === null) {
-		return null;
-	}
+	const lowerBodyText = bodyText.toLowerCase();
+	const keys = ['"error"', '"message"'];
+	const maxRawValueLength = 10000;
 
-	const [, rawValue] = match;
-	try {
-		const decoded = JSON.parse(`"${rawValue}"`) as unknown;
-		if (typeof decoded === 'string' && decoded.trim()) {
-			return decoded;
+	for (const key of keys) {
+		const keyIndex = lowerBodyText.indexOf(key);
+		if (keyIndex < 0) {
+			continue;
 		}
-	}
-	catch {
-		const fallbackDecoded = rawValue
-			.replace(/\\r\\n/g, '\n')
-			.replace(/\\n/g, '\n')
-			.replace(/\\r/g, '\r')
-			.replace(/\\"/g, '"')
-			.replace(/\\\\/g, '\\');
-		if (fallbackDecoded.trim()) {
-			return fallbackDecoded;
+
+		const colonIndex = bodyText.indexOf(':', keyIndex + key.length);
+		if (colonIndex < 0) {
+			continue;
+		}
+
+		const openingQuoteIndex = bodyText.indexOf('"', colonIndex + 1);
+		if (openingQuoteIndex < 0) {
+			continue;
+		}
+
+		let escaped = false;
+		let rawValue = '';
+		for (let i = openingQuoteIndex + 1; i < bodyText.length; i += 1) {
+			const currentCharacter = bodyText[i];
+			if (escaped) {
+				rawValue += currentCharacter;
+				escaped = false;
+				continue;
+			}
+
+			if (currentCharacter === '\\') {
+				rawValue += currentCharacter;
+				escaped = true;
+				continue;
+			}
+
+			if (currentCharacter === '"') {
+				try {
+					const decoded = JSON.parse(`"${rawValue}"`) as unknown;
+					if (typeof decoded === 'string' && decoded.trim()) {
+						return decoded;
+					}
+				}
+				catch {
+					if (rawValue.trim()) {
+						return rawValue;
+					}
+				}
+
+				break;
+			}
+
+			rawValue += currentCharacter;
+			if (rawValue.length > maxRawValueLength) {
+				break;
+			}
 		}
 	}
 
