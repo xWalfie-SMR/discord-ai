@@ -400,7 +400,7 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		let valueStartIndex = colonIndex + 1;
 		while (
 			valueStartIndex < bodyText.length
-			&& /\s/.test(bodyText[valueStartIndex] ?? '')
+			&& /\s/.test(bodyText[valueStartIndex])
 		) {
 			valueStartIndex += 1;
 		}
