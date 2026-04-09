@@ -33,8 +33,7 @@ const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+APIs\s+failed\.\s*last error:
 const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
 const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
 const JSON_LIKE_ERROR_FIELD_MAX_LENGTH = 10000;
-const JSON_LIKE_ERROR_KEY_PATTERN = /"(error|message)"/gi;
-const WHITESPACE_PATTERN = /\s/;
+const JSON_LIKE_ERROR_KEY_PATTERN = /"(error|message)"/g;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -399,10 +398,7 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		}
 
 		let valueStartIndex = colonIndex + 1;
-		while (
-			valueStartIndex < bodyText.length
-			&& WHITESPACE_PATTERN.test(bodyText[valueStartIndex])
-		) {
+		while (valueStartIndex < bodyText.length && isJsonWhitespace(bodyText[valueStartIndex])) {
 			valueStartIndex += 1;
 		}
 
@@ -457,6 +453,10 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 	}
 
 	return null;
+}
+
+function isJsonWhitespace(char: string | undefined): boolean {
+	return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
 async function sendHostedDownloadReply(
