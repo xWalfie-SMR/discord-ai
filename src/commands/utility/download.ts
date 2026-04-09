@@ -385,21 +385,31 @@ function formatServiceFailureMessage(message: string): string | null {
 }
 
 function extractJsonLikeErrorField(bodyText: string): string | null {
-	const lowerBodyText = bodyText.toLowerCase();
-	const keys = ['"error"', '"message"'];
-
-	for (const key of keys) {
-		const keyIndex = lowerBodyText.indexOf(key);
-		if (keyIndex < 0) {
+	const keyPattern = /"(error|message)"/gi;
+	for (const keyMatch of bodyText.matchAll(keyPattern)) {
+		const keyIndex = keyMatch.index;
+		if (keyIndex === undefined) {
 			continue;
 		}
 
-		const colonIndex = bodyText.indexOf(':', keyIndex + key.length);
+		const colonIndex = bodyText.indexOf(':', keyIndex + keyMatch[0].length);
 		if (colonIndex < 0) {
 			continue;
 		}
 
-		const openingQuoteIndex = bodyText.indexOf('"', colonIndex + 1);
+		let valueStartIndex = colonIndex + 1;
+		while (
+			valueStartIndex < bodyText.length
+			&& /\s/.test(bodyText[valueStartIndex] ?? '')
+		) {
+			valueStartIndex += 1;
+		}
+
+		if (bodyText[valueStartIndex] !== '"') {
+			continue;
+		}
+
+		const openingQuoteIndex = valueStartIndex;
 		if (openingQuoteIndex < 0) {
 			continue;
 		}
