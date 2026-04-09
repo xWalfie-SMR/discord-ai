@@ -308,13 +308,59 @@ async function readErrorMessage(res: Response): Promise<string> {
 
 function formatDownloadFailureMessage(message: string): string {
 	const prefix = 'Download failed: ';
+	const serviceFailureMessage = formatServiceFailureMessage(message);
+	if (serviceFailureMessage !== null) {
+		return truncateDownloadFailureDetail(serviceFailureMessage, prefix);
+	}
+
+	return truncateDownloadFailureDetail(message, prefix);
+}
+
+function truncateDownloadFailureDetail(detailMessage: string, prefix: string): string {
 	const maxDetailLength = DISCORD_MESSAGE_MAX_LENGTH - prefix.length;
-	const safeMessage = message.replace(/@/g, '@\u200b');
+	const safeMessage = detailMessage.replace(/@/g, '@\u200b');
 	const ellipsis = '…';
 	const detail = safeMessage.length > maxDetailLength
 		? `${safeMessage.slice(0, Math.max(0, maxDetailLength - ellipsis.length))}${ellipsis}`
 		: safeMessage;
 	return `${prefix}${detail}`;
+}
+
+function formatServiceFailureMessage(message: string): string | null {
+	const trimmed = message.trim();
+	const headerMatch = trimmed.match(/^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i);
+	if (headerMatch === null) {
+		return null;
+	}
+
+	const endpointMatches = [...trimmed.matchAll(
+		/^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim,
+	)];
+
+	const expectedCount = Number.parseInt(headerMatch[1], 10);
+	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
+		? expectedCount
+		: endpointMatches.length;
+	const lastError = headerMatch[2].trim();
+
+	if (endpointMatches.length === 0) {
+		return `All ${endpointCount} provider endpoints failed (${lastError}). The service could not find a working fallback source. Please retry in a few minutes or try another track.`;
+	}
+
+	const services = endpointMatches.map((match) => {
+		const host = match[1];
+		const state = match[2];
+		const failures = match[3];
+		return `• ${host} (${state}, failures: ${failures})`;
+	}).join('\n');
+
+	return [
+		`All ${endpointCount} provider endpoints failed (${lastError}).`,
+		'No fallback source could be used for this track.',
+		'Tried services:',
+		services,
+		'Please retry in a few minutes or try another track.',
+	].join('\n');
 }
 
 async function sendHostedDownloadReply(
