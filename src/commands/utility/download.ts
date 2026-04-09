@@ -410,10 +410,6 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		}
 
 		const openingQuoteIndex = valueStartIndex;
-		if (openingQuoteIndex < 0) {
-			continue;
-		}
-
 		let escaped = false;
 		let closingQuoteIndex = -1;
 		const maxSearchIndexExclusive = Math.min(
