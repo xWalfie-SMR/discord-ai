@@ -32,6 +32,8 @@ const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+APIs\s+failed\.\s*last error:
 // Matches backend endpoint lines like: `https://host:443/: state=closed, consecutive_failures=2`
 const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
 const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
+const JSON_LIKE_ERROR_FIELD_MAX_LENGTH = 10000;
+const JSON_LIKE_ERROR_KEY_PATTERN = /"(error|message)"/g;
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -305,7 +307,10 @@ async function readErrorMessage(res: Response): Promise<string> {
 		}
 	}
 	catch {
-		// Non-JSON responses are valid; fall back to plain text.
+		const extractedJsonLikeMessage = extractJsonLikeErrorField(bodyText);
+		if (extractedJsonLikeMessage !== null) {
+			return extractedJsonLikeMessage;
+		}
 	}
 
 	return bodyText;
@@ -333,13 +338,15 @@ function truncateDownloadFailureDetail(detailMessage: string, prefix: string): s
 
 function formatServiceFailureMessage(message: string): string | null {
 	const trimmed = message.trim();
-	const firstLine = trimmed.split(/\r?\n/, 1)[0] ?? '';
+	const normalizedMessage = extractJsonLikeErrorField(trimmed) ?? trimmed;
+	const normalizedTrimmed = normalizedMessage.trim();
+	const firstLine = normalizedTrimmed.split(/\r?\n/, 1)[0] ?? '';
 	const headerMatch = firstLine.match(API_FAILURE_HEADER_PATTERN);
 	if (headerMatch === null) {
 		return null;
 	}
 
-	const endpointMatches = [...trimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
+	const endpointMatches = [...normalizedTrimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
 
 	const expectedCount = Number.parseInt(headerMatch[1], 10);
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
@@ -376,6 +383,88 @@ function formatServiceFailureMessage(message: string): string | null {
 		services,
 		SERVICE_FAILURE_RETRY_GUIDANCE,
 	].join('\n');
+}
+
+function extractJsonLikeErrorField(bodyText: string): string | null {
+	for (const keyMatch of bodyText.matchAll(JSON_LIKE_ERROR_KEY_PATTERN)) {
+		const keyIndex = keyMatch.index;
+		if (keyIndex === undefined) {
+			continue;
+		}
+
+		const colonIndex = bodyText.indexOf(':', keyIndex + keyMatch[0].length);
+		if (colonIndex < 0) {
+			continue;
+		}
+
+		let valueStartIndex = colonIndex + 1;
+		while (valueStartIndex < bodyText.length && isJsonWhitespace(bodyText[valueStartIndex])) {
+			valueStartIndex += 1;
+		}
+
+		if (bodyText[valueStartIndex] !== '"') {
+			continue;
+		}
+
+		const openingQuoteIndex = valueStartIndex;
+		let escaped = false;
+		let closingQuoteIndex = -1;
+		const maxSearchIndexExclusive = Math.min(
+			bodyText.length,
+			openingQuoteIndex + 1 + JSON_LIKE_ERROR_FIELD_MAX_LENGTH + 1,
+		);
+		for (let i = openingQuoteIndex + 1; i < maxSearchIndexExclusive; i += 1) {
+			const char = bodyText[i];
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+
+			if (char === '\\') {
+				escaped = true;
+				continue;
+			}
+
+			if (char === '"') {
+				closingQuoteIndex = i;
+				break;
+			}
+		}
+
+		if (closingQuoteIndex < 0) {
+			continue;
+		}
+
+		const rawValue = bodyText.slice(openingQuoteIndex + 1, closingQuoteIndex);
+		try {
+			const decoded = JSON.parse(`"${rawValue}"`) as unknown;
+			if (typeof decoded === 'string') {
+				const trimmedDecoded = decoded.trim();
+				if (trimmedDecoded) {
+					return trimmedDecoded;
+				}
+			}
+		}
+		catch {
+			if (rawValue.trim()) {
+				return rawValue;
+			}
+		}
+	}
+
+	return null;
+}
+
+function isJsonWhitespace(char: string | undefined): boolean {
+	switch (char) {
+	case ' ':
+	case '\t':
+	case '\n':
+	case '\r':
+		return true;
+	default:
+		return false;
+	}
 }
 
 async function sendHostedDownloadReply(
