@@ -405,43 +405,46 @@ function extractJsonLikeErrorField(bodyText: string): string | null {
 		}
 
 		let escaped = false;
-		let rawValue = '';
+		let closingQuoteIndex = -1;
 		for (let i = openingQuoteIndex + 1; i < bodyText.length; i += 1) {
+			if (i - openingQuoteIndex - 1 > JSON_LIKE_ERROR_FIELD_MAX_LENGTH) {
+				break;
+			}
+
 			const char = bodyText[i];
 			if (escaped) {
-				rawValue += char;
 				escaped = false;
 				continue;
 			}
 
 			if (char === '\\') {
-				rawValue += char;
 				escaped = true;
 				continue;
 			}
 
 			if (char === '"') {
-				try {
-					const decoded = JSON.parse(`"${rawValue}"`) as unknown;
-					if (typeof decoded === 'string') {
-						const trimmedDecoded = decoded.trim();
-						if (trimmedDecoded) {
-							return trimmedDecoded;
-						}
-					}
-				}
-				catch {
-					if (rawValue.trim()) {
-						return rawValue;
-					}
-				}
-
+				closingQuoteIndex = i;
 				break;
 			}
+		}
 
-			rawValue += char;
-			if (rawValue.length > JSON_LIKE_ERROR_FIELD_MAX_LENGTH) {
-				break;
+		if (closingQuoteIndex < 0) {
+			continue;
+		}
+
+		const rawValue = bodyText.slice(openingQuoteIndex + 1, closingQuoteIndex);
+		try {
+			const decoded = JSON.parse(`"${rawValue}"`) as unknown;
+			if (typeof decoded === 'string') {
+				const trimmedDecoded = decoded.trim();
+				if (trimmedDecoded) {
+					return trimmedDecoded;
+				}
+			}
+		}
+		catch {
+			if (rawValue.trim()) {
+				return rawValue;
 			}
 		}
 	}
