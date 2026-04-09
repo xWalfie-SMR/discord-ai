@@ -27,6 +27,11 @@ const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
+// Matches backend failures like: `all 7 APIs failed. Last error: HTTP 404.`
+const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+APIs\s+failed\.\s*last error:\s*([^\n]+)$/i;
+// Matches backend endpoint lines like: `https://host:443/: state=closed, consecutive_failures=2`
+const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
+const SERVICE_FAILURE_RETRY_GUIDANCE = 'Please retry in a few minutes or try another track.';
 
 // Button interaction timeout (30 seconds)
 const BUTTON_TIMEOUT = 30000;
@@ -308,13 +313,66 @@ async function readErrorMessage(res: Response): Promise<string> {
 
 function formatDownloadFailureMessage(message: string): string {
 	const prefix = 'Download failed: ';
+	const serviceFailureMessage = formatServiceFailureMessage(message);
+	if (serviceFailureMessage !== null) {
+		return truncateDownloadFailureDetail(serviceFailureMessage, prefix);
+	}
+
+	return truncateDownloadFailureDetail(message, prefix);
+}
+
+function truncateDownloadFailureDetail(detailMessage: string, prefix: string): string {
 	const maxDetailLength = DISCORD_MESSAGE_MAX_LENGTH - prefix.length;
-	const safeMessage = message.replace(/@/g, '@\u200b');
+	const safeMessage = detailMessage.replace(/@/g, '@\u200b');
 	const ellipsis = '…';
 	const detail = safeMessage.length > maxDetailLength
 		? `${safeMessage.slice(0, Math.max(0, maxDetailLength - ellipsis.length))}${ellipsis}`
 		: safeMessage;
 	return `${prefix}${detail}`;
+}
+
+function formatServiceFailureMessage(message: string): string | null {
+	const trimmed = message.trim();
+	const firstLine = trimmed.split(/\r?\n/, 1)[0] ?? '';
+	const headerMatch = firstLine.match(API_FAILURE_HEADER_PATTERN);
+	if (headerMatch === null) {
+		return null;
+	}
+
+	const endpointMatches = [...trimmed.matchAll(API_ENDPOINT_FAILURE_PATTERN)];
+
+	const expectedCount = Number.parseInt(headerMatch[1], 10);
+	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
+		? expectedCount
+		: endpointMatches.length;
+	const rawLastError = headerMatch[2].trim();
+	const lastError = /[.!?]$/.test(rawLastError)
+		? rawLastError
+		: `${rawLastError}.`;
+	const endpointLabel = endpointCount > 0
+		? `${endpointCount} provider endpoints`
+		: 'provider endpoints';
+
+	if (endpointMatches.length === 0) {
+		return [
+			`All ${endpointLabel} failed (${lastError})`,
+			'The service could not find a working fallback source.',
+			SERVICE_FAILURE_RETRY_GUIDANCE,
+		].join(' ');
+	}
+
+	const services = endpointMatches.map((match) => {
+		const [authority, state, consecutiveFailures] = match.slice(1);
+		return `• ${authority} (${state}, failures: ${consecutiveFailures})`;
+	}).join('\n');
+
+	return [
+		`All ${endpointLabel} failed (${lastError})`,
+		'No fallback source could be used for this track.',
+		'Tried services:',
+		services,
+		SERVICE_FAILURE_RETRY_GUIDANCE,
+	].join('\n');
 }
 
 async function sendHostedDownloadReply(
