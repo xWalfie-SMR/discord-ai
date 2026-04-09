@@ -27,7 +27,7 @@ const SPOTIDL_API = typedConfig.spotiflacApiUrl ?? 'https://spotdl.xwalfie.dev';
 const HOSTED_BASE_URL = typedConfig.hostedDownloadBaseUrl ?? 'https://dl.xwalfie.dev';
 const HOSTED_LINK_THRESHOLD_BYTES = 25 * 1024 * 1024;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
-// Matches backend failures like: `all 7 APIs failed. Last error: HTTP 404.`
+// Matches backend failures like: `all 7 API endpoints failed. Last error: HTTP 404.`
 const API_FAILURE_HEADER_PATTERN = /^all\s+(\d+)\s+apis\s+failed\.\s*last error:\s*([^\n]+)$/i;
 // Matches backend endpoint lines like: `https://host:443/: state=closed, consecutive_failures=2`
 const API_ENDPOINT_FAILURE_PATTERN = /^\s*https?:\/\/([^/\s]+)\/?:\s*state=([^,\n]+),\s*consecutive_failures=(\d+)/gim;
@@ -343,24 +343,27 @@ function formatServiceFailureMessage(message: string): string | null {
 	const expectedCount = Number.parseInt(headerMatch[1], 10);
 	const endpointCount = Number.isFinite(expectedCount) && expectedCount > 0
 		? expectedCount
-		: Math.max(1, endpointMatches.length);
+		: endpointMatches.length;
 	const lastError = headerMatch[2].trim();
+	const endpointLabel = endpointCount > 0
+		? `${endpointCount} provider endpoints`
+		: 'provider endpoints';
 
 	if (endpointMatches.length === 0) {
 		return [
-			`All ${endpointCount} provider endpoints failed (${lastError}).`,
+			`All ${endpointLabel} failed (${lastError}).`,
 			'The service could not find a working fallback source.',
 			SERVICE_FAILURE_RETRY_GUIDANCE,
 		].join(' ');
 	}
 
 	const services = endpointMatches.map((match) => {
-		const [, host, state, consecutiveFailures] = match;
+		const [host, state, consecutiveFailures] = match.slice(1);
 		return `• ${host} (${state}, failures: ${consecutiveFailures})`;
 	}).join('\n');
 
 	return [
-		`All ${endpointCount} provider endpoints failed (${lastError}).`,
+		`All ${endpointLabel} failed (${lastError}).`,
 		'No fallback source could be used for this track.',
 		'Tried services:',
 		services,
