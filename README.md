@@ -275,6 +275,28 @@ Required permissions:
 - Use Slash Commands
 - Attach Files (for screenshot sharing)
 
+### Inviting the Bot to Other Servers
+
+This bot uses **global commands**, meaning once deployed, the `/download` and other commands will be available in **all servers** where the bot is added.
+
+#### Creating an Invite Link
+
+To invite the bot to a new server, use the OAuth2 URL with the `applications.commands` scope:
+
+```
+https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=applications.commands+bot&permissions=YOUR_PERMISSIONS
+```
+
+Replace:
+- `YOUR_CLIENT_ID` with your bot's client ID from the Discord Developer Portal
+- `YOUR_PERMISSIONS` with the permission integer (e.g., `274877906944` for Send Messages + Use Slash Commands)
+
+#### Global Command Propagation
+
+**Important**: After running `npm run deploy`, global commands can take up to **1 hour** to propagate to all servers where the bot is present. This is a Discord API limitation.
+
+For immediate testing in a specific server, you can temporarily switch back to guild-specific commands by modifying `src/deploy-commands.ts` to use `Routes.applicationGuildCommands(clientId, guildId)` with a specific guild ID.
+
 ## Troubleshooting
 
 ### Bot Not Responding

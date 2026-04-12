@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const { clientId, guildId, discordToken } = config;
+const { clientId, discordToken } = config;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,12 +40,14 @@ const rest = new REST().setToken(discordToken);
 // and deploy your commands!
 (async () => {
 	try {
-		console.log(`Started refreshing ${commands.length} application (/) commands.`);
+		console.log(`Started refreshing ${commands.length} global application (/) commands.`);
 
-		// The put method is used to fully refresh all commands in the guild with the current set
-		const data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands }) as any[];
+		// The put method is used to fully refresh all global commands with the current set
+		// Global commands are available in all servers the bot is in
+		const data = await rest.put(Routes.applicationCommands(clientId), { body: commands }) as any[];
 
-		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+		console.log(`Successfully reloaded ${data.length} global application (/) commands.`);
+		console.log('Note: Global commands can take up to 1 hour to propagate to all servers.');
 		process.exit(0);
 	}
 	catch (error) {
