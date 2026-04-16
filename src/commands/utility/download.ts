@@ -109,7 +109,9 @@ export default {
 					: null;
 				const timeRemaining = expiresAt !== null
 					? formatTimeRemaining(expiresAt)
-					: formatTimeRemainingFromSeconds(existingDownload.expires_in_seconds);
+					: formatTimeRemainingFromSeconds(
+						existingDownload.expires_in_seconds ?? existingDownload.configured_expires_in_seconds,
+					);
 
 				const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
 					new ButtonBuilder()
@@ -514,6 +516,13 @@ async function getUserFileExpiry(userId: string): Promise<UserFileExpiry> {
 
 				if (typeof data.expires_in_seconds === 'number' && Number.isFinite(data.expires_in_seconds)) {
 					return { expiresInSeconds: data.expires_in_seconds };
+				}
+
+				if (
+					typeof data.configured_expires_in_seconds === 'number'
+					&& Number.isFinite(data.configured_expires_in_seconds)
+				) {
+					return { expiresInSeconds: data.configured_expires_in_seconds };
 				}
 			}
 		}
