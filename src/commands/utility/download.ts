@@ -42,12 +42,15 @@ interface UserDownloadResponse {
     active: boolean;
     filename?: string;
     expires_at?: string;
+    expires_in_seconds?: number;
+    configured_expires_in_seconds?: number;
 }
 
 interface HostedDownloadResponse {
     type: 'hosted';
     download_url?: string;
     expires_at?: string;
+    expires_in_seconds?: number;
 }
 
 export default {
@@ -104,9 +107,11 @@ export default {
 				const expiresAt = existingDownload.expires_at
 					? new Date(existingDownload.expires_at)
 					: null;
-				const timeRemaining = expiresAt
+				const timeRemaining = expiresAt !== null
 					? formatTimeRemaining(expiresAt)
-					: 'soon';
+					: formatTimeRemainingFromSeconds(
+						existingDownload.expires_in_seconds ?? existingDownload.configured_expires_in_seconds,
+					);
 
 				const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
 					new ButtonBuilder()
@@ -191,9 +196,16 @@ export default {
 					type?: unknown;
 					download_url?: unknown;
 					expires_at?: unknown;
+					expires_in_seconds?: unknown;
 				};
 				if (isHostedDownloadResponse(responseData)) {
-					await sendHostedDownloadReply(interaction, userId, responseData.download_url, responseData.expires_at);
+					await sendHostedDownloadReply(
+						interaction,
+						userId,
+						responseData.download_url,
+						responseData.expires_at,
+						responseData.expires_in_seconds,
+					);
 					return;
 				}
 
@@ -217,8 +229,8 @@ export default {
 
 			// If the server reports an oversized file, avoid buffering the full response.
 			if (Number.isFinite(contentLength) && contentLength > uploadLimit) {
-				const expiresAt = await getUserFileExpiry(userId);
-				await sendHostedDownloadReply(interaction, userId, undefined, expiresAt);
+				const expiry = await getUserFileExpiry(userId);
+				await sendHostedDownloadReply(interaction, userId, undefined, expiry.expiresAt, expiry.expiresInSeconds);
 				return;
 			}
 
@@ -226,8 +238,8 @@ export default {
 
 			// Files over the 25MB hosting split or Discord's channel upload limit are served via hosted links.
 			if (buffer.byteLength > uploadLimit) {
-				const expiresAt = await getUserFileExpiry(userId);
-				await sendHostedDownloadReply(interaction, userId, undefined, expiresAt);
+				const expiry = await getUserFileExpiry(userId);
+				await sendHostedDownloadReply(interaction, userId, undefined, expiry.expiresAt, expiry.expiresInSeconds);
 				return;
 			}
 
@@ -247,8 +259,8 @@ export default {
 			}
 			catch (error) {
 				if (error instanceof DiscordAPIError && error.code === 40005) {
-					const expiresAt = await getUserFileExpiry(userId);
-					await sendHostedDownloadReply(interaction, userId, undefined, expiresAt);
+					const expiry = await getUserFileExpiry(userId);
+					await sendHostedDownloadReply(interaction, userId, undefined, expiry.expiresAt, expiry.expiresInSeconds);
 					return;
 				}
 				throw error;
@@ -285,14 +297,25 @@ function formatTimeRemaining(expiresAt: Date): string {
 	return `${minutes}m`;
 }
 
+function formatTimeRemainingFromSeconds(expiresInSeconds: number | undefined): string {
+	if (typeof expiresInSeconds !== 'number' || !Number.isFinite(expiresInSeconds)) {
+		return 'soon';
+	}
+
+	const expiresAt = new Date(Date.now() + (expiresInSeconds * 1000));
+	return formatTimeRemaining(expiresAt);
+}
+
 function isHostedDownloadResponse(response: {
 	type?: unknown;
 	download_url?: unknown;
 	expires_at?: unknown;
+	expires_in_seconds?: unknown;
 }): response is HostedDownloadResponse {
 	return response.type === 'hosted'
 		&& (response.download_url === undefined || typeof response.download_url === 'string')
-		&& (response.expires_at === undefined || typeof response.expires_at === 'string');
+		&& (response.expires_at === undefined || typeof response.expires_at === 'string')
+		&& (response.expires_in_seconds === undefined || typeof response.expires_in_seconds === 'number');
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -474,22 +497,40 @@ function isJsonWhitespace(char: string | undefined): boolean {
 	}
 }
 
-async function getUserFileExpiry(userId: string): Promise<string | undefined> {
+interface UserFileExpiry {
+	expiresAt?: string;
+	expiresInSeconds?: number;
+}
+
+async function getUserFileExpiry(userId: string): Promise<UserFileExpiry> {
 	try {
 		const res = await fetch(`${SPOTIDL_API}/user-download/${userId}`, {
 			headers: { 'X-User-ID': userId },
 		});
 		if (res.ok) {
 			const data = await res.json() as UserDownloadResponse;
-			if (data.active && data.expires_at) {
-				return data.expires_at;
+			if (data.active) {
+				if (data.expires_at) {
+					return { expiresAt: data.expires_at };
+				}
+
+				if (typeof data.expires_in_seconds === 'number' && Number.isFinite(data.expires_in_seconds)) {
+					return { expiresInSeconds: data.expires_in_seconds };
+				}
+
+				if (
+					typeof data.configured_expires_in_seconds === 'number'
+					&& Number.isFinite(data.configured_expires_in_seconds)
+				) {
+					return { expiresInSeconds: data.configured_expires_in_seconds };
+				}
 			}
 		}
 	}
 	catch {
 		// Best-effort — not worth blocking the reply over
 	}
-	return undefined;
+	return {};
 }
 
 async function sendHostedDownloadReply(
@@ -497,6 +538,7 @@ async function sendHostedDownloadReply(
 	userId: string,
 	downloadUrl?: string,
 	expiresAt?: string,
+	expiresInSeconds?: number,
 ): Promise<void> {
 	const url = downloadUrl ?? `${HOSTED_BASE_URL}/${userId}`;
 
@@ -505,7 +547,9 @@ async function sendHostedDownloadReply(
 		: Number.NaN;
 	const expiryText = Number.isFinite(expiresUnix)
 		? `Expires <t:${expiresUnix}:R> (at <t:${expiresUnix}:t>).`
-		: 'Expires in 5 minutes.';
+		: (typeof expiresInSeconds === 'number' && Number.isFinite(expiresInSeconds))
+			? `Expires in ${formatTimeRemainingFromSeconds(expiresInSeconds)}.`
+			: 'Expires in 5 minutes.';
 
 	await interaction.editReply({
 		content: `Your file is ready: ${url}\n${expiryText} Click the link to download.`,
