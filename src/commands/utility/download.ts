@@ -500,13 +500,12 @@ async function sendHostedDownloadReply(
 ): Promise<void> {
 	const url = downloadUrl ?? `${HOSTED_BASE_URL}/${userId}`;
 
-	let expiryText = 'Expires in 5 minutes.';
-	if (expiresAt) {
-		const expiresUnix = Math.floor(new Date(expiresAt).getTime() / 1000);
-		if (Number.isFinite(expiresUnix)) {
-			expiryText = `Expires <t:${expiresUnix}:R> (at <t:${expiresUnix}:t>).`;
-		}
-	}
+	const expiresUnix = expiresAt
+		? Math.floor(new Date(expiresAt).getTime() / 1000)
+		: Number.NaN;
+	const expiryText = Number.isFinite(expiresUnix)
+		? `Expires <t:${expiresUnix}:R> (at <t:${expiresUnix}:t>).`
+		: 'Expires in 5 minutes.';
 
 	await interaction.editReply({
 		content: `Your file is ready: ${url}\n${expiryText} Click the link to download.`,
