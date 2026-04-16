@@ -291,7 +291,8 @@ function isHostedDownloadResponse(response: {
 	expires_at?: unknown;
 }): response is HostedDownloadResponse {
 	return response.type === 'hosted'
-		&& (response.download_url === undefined || typeof response.download_url === 'string');
+		&& (response.download_url === undefined || typeof response.download_url === 'string')
+		&& (response.expires_at === undefined || typeof response.expires_at === 'string');
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -475,10 +476,12 @@ function isJsonWhitespace(char: string | undefined): boolean {
 
 async function getUserFileExpiry(userId: string): Promise<string | undefined> {
 	try {
-		const res = await fetch(`${SPOTIDL_API}/user-download/${userId}`);
+		const res = await fetch(`${SPOTIDL_API}/user-download/${userId}`, {
+			headers: { 'X-User-ID': userId },
+		});
 		if (res.ok) {
-			const data = await res.json() as { has_active_file?: boolean; expires_at?: string };
-			if (data.has_active_file && data.expires_at) {
+			const data = await res.json() as UserDownloadResponse;
+			if (data.active && data.expires_at) {
 				return data.expires_at;
 			}
 		}
@@ -493,12 +496,12 @@ async function sendHostedDownloadReply(
 	interaction: ChatInputCommandInteraction,
 	userId: string,
 	downloadUrl?: string,
-	expiresAt?: unknown,
+	expiresAt?: string,
 ): Promise<void> {
 	const url = downloadUrl ?? `${HOSTED_BASE_URL}/${userId}`;
 
-	let expiryText = 'Expires in 1 hour.';
-	if (typeof expiresAt === 'string' && expiresAt) {
+	let expiryText = 'Expires in 5 minutes.';
+	if (expiresAt) {
 		const expiresUnix = Math.floor(new Date(expiresAt).getTime() / 1000);
 		if (Number.isFinite(expiresUnix)) {
 			expiryText = `Expires <t:${expiresUnix}:R> (at <t:${expiresUnix}:t>).`;
