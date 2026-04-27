@@ -1,4 +1,9 @@
-import { REST, Routes } from 'discord.js';
+import {
+	REST,
+	Routes,
+	ApplicationIntegrationType,
+	InteractionContextType,
+} from 'discord.js';
 import config from './config.json' with { type: 'json' };
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,7 +31,25 @@ for (const folder of commandFolders) {
 		const commandModule = command.default || command;
 
 		if ('data' in commandModule && 'execute' in commandModule) {
-			commands.push(commandModule.data.toJSON());
+			const commandJson = commandModule.data.toJSON() as {
+				name?: string;
+				[key: string]: unknown;
+			};
+			const contexts = commandJson.name === 'server'
+				? [InteractionContextType.Guild]
+				: [
+					InteractionContextType.Guild,
+					InteractionContextType.BotDM,
+					InteractionContextType.PrivateChannel,
+				];
+			commands.push({
+				...commandJson,
+				integration_types: [
+					ApplicationIntegrationType.GuildInstall,
+					ApplicationIntegrationType.UserInstall,
+				],
+				contexts,
+			});
 		}
 		else {
 			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
