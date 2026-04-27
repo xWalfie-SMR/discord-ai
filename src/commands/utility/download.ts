@@ -1,5 +1,7 @@
 import {
+	ApplicationIntegrationType,
 	ChatInputCommandInteraction,
+	InteractionContextType,
 	SlashCommandBuilder,
 	AttachmentBuilder,
 	ActionRowBuilder,
@@ -57,6 +59,8 @@ export default {
 	data: new SlashCommandBuilder()
 		.setName('download')
 		.setDescription('Download a Spotify track')
+		.setIntegrationTypes([ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall])
+		.setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel])
 		.addStringOption((option) =>
 			option
 				.setName('url')
