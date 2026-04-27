@@ -1,5 +1,7 @@
 import {
+	ApplicationIntegrationType,
 	ChatInputCommandInteraction,
+	InteractionContextType,
 	SlashCommandBuilder,
 	AttachmentBuilder,
 } from 'discord.js';
@@ -11,6 +13,8 @@ export default {
 	data: new SlashCommandBuilder()
 		.setName('control')
 		.setDescription('Sends a command to the AI.')
+		.setIntegrationTypes([ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall])
+		.setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel])
 		.addStringOption((option) =>
 			option
 				.setName('command')
